@@ -64,7 +64,7 @@ jobs:
       - name: Повторный запуск миграций (должен ничего не применить)
         run: php bin/migrate.php migrate
 
-      - name: Сиды (дважды: проверка идемпотентности)
+      - name: Сиды дважды (проверка идемпотентности)
         run: |
           for run in 1 2; do
             if ! out=$(php bin/migrate.php seed 2>&1); then
