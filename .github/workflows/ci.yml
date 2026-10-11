@@ -1,13 +1,66 @@
 name: CI
-on: [push, pull_request]
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
 jobs:
-  test:
+  tests:
     runs-on: ubuntu-latest
+
+    services:
+      mysql:
+        image: mysql:8.0
+        env:
+          MYSQL_ROOT_PASSWORD: root
+          MYSQL_DATABASE: lift_kb
+        ports:
+          - 3306:3306
+        options: >-
+          --health-cmd="mysqladmin ping -h 127.0.0.1 -proot"
+          --health-interval=5s
+          --health-timeout=5s
+          --health-retries=20
+
+    env:
+      DB_HOST: 127.0.0.1
+      DB_PORT: 3306
+      DB_NAME: lift_kb
+      DB_USER: root
+      DB_PASSWORD: root
+
     steps:
       - uses: actions/checkout@v4
+
       - uses: shivammathur/setup-php@v2
         with:
-          php-version: "8.3"
-          tools: composer
-      - run: composer install --no-interaction --prefer-dist
-      - run: composer test
+          php-version: '8.3'
+          extensions: pdo_mysql, pdo_sqlite, mbstring
+          coverage: none
+          tools: composer:v2
+
+      - name: Кэш Composer
+        uses: actions/cache@v4
+        with:
+          path: vendor
+          key: composer-${{ hashFiles('composer.lock') }}
+          restore-keys: composer-
+
+      - name: Установка зависимостей
+        run: composer install --no-interaction --prefer-dist --no-progress
+
+      - name: Проверка синтаксиса
+        run: find src public tests bin -name '*.php' -print0 | xargs -0 -n1 php -l
+
+      - name: Миграции на MySQL 8
+        run: php bin/migrate.php migrate
+
+      - name: Повторный запуск миграций (должен ничего не применить)
+        run: php bin/migrate.php migrate
+
+      - name: Сиды
+        run: php bin/migrate.php seed
+
+      - name: PHPUnit
+        run: vendor/bin/phpunit

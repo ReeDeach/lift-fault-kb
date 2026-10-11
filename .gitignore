@@ -1,2 +1,8 @@
-vendor/
+/vendor/
 .env
+.phpunit.cache/
+.phpunit.result.cache
+/docker/mysql-data/
+.idea/
+.vscode/
+.DS_Store

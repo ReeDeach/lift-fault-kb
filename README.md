@@ -26,16 +26,40 @@ docker compose exec php composer install
 curl http://localhost:8080/api/health
 ```
 
+База данных:
+
+```bash
+docker compose exec php php bin/migrate.php migrate   # применить миграции
+docker compose exec php php bin/migrate.php seed      # заполнить производителей
+docker compose exec php php bin/migrate.php status    # что применено и что ждёт
+```
+
 Тесты:
 
 ```bash
 docker compose exec php composer test
 ```
 
+## Схема данных
+
+```
+manufacturers → models → fault_codes
+                              ↓ (fault_code_symptoms)
+symptoms → (symptom_causes, likelihood 1–5) → causes → (cause_fixes) → fixes → fix_steps
+cases — реальные случаи: дата, описание, код, причина, ремонт, результат
+```
+
+Миграции лежат в `database/migrations`, сиды в `database/seeds`. Вторичные
+индексы намеренно не добавлены: они появятся на этапе 5 вместе с замерами
+`EXPLAIN` до и после.
+
+В таблице `cases` не храним адреса объектов, фамилии и телефоны: только
+техническое описание случая.
+
 ## Статус
 
 - [x] Этап 1. Каркас: Docker, Composer, роутер, CI
-- [ ] Этап 2. Миграции и данные
+- [ ] Этап 2. Миграции и данные (схема готова, наполнение записями — в процессе)
 - [ ] Этап 3. REST API и тесты
 - [ ] Этап 4. Поиск через Manticore
 - [ ] Этап 5. Оптимизация (индексы, `EXPLAIN`)
