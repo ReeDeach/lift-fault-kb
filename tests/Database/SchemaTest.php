@@ -51,6 +51,59 @@ final class SchemaTest extends TestCase
         $this->assertArrayHasKey('otis', $names);
     }
 
+    public function testSeededModelsAndCodesExist(): void
+    {
+        $codes = $this->pdo->query(
+            "SELECT fc.code FROM fault_codes fc JOIN models m ON m.id = fc.model_id WHERE m.name = '0401К'"
+        )->fetchAll(PDO::FETCH_COLUMN);
+
+        $this->assertContains('45', $codes);
+        $this->assertContains('E36', $codes);
+
+        $models = $this->pdo->query(
+            "SELECT m.name FROM models m JOIN manufacturers f ON f.id = m.manufacturer_id WHERE f.slug = 'mogilevlift'"
+        )->fetchAll(PDO::FETCH_COLUMN);
+
+        $this->assertContains('ПВБ1010Г', $models);
+    }
+
+    /**
+     * Опечатка в названии при связывании в сиде молча теряет связку, поэтому проверяем «сирот»
+     * среди записей с источником РЭ: запись без связей не попадёт в диагностику.
+     */
+    public function testSeededKnowledgeHasNoOrphans(): void
+    {
+        $checks = [
+            'симптом без причины' => 'SELECT COUNT(*) FROM symptoms s WHERE s.source LIKE \'РЭ%\' '
+                . 'AND NOT EXISTS (SELECT 1 FROM symptom_causes x WHERE x.symptom_id = s.id)',
+            'причина без симптома' => 'SELECT COUNT(*) FROM causes c WHERE c.source LIKE \'РЭ%\' '
+                . 'AND NOT EXISTS (SELECT 1 FROM symptom_causes x WHERE x.cause_id = c.id)',
+            'причина без ремонта' => 'SELECT COUNT(*) FROM causes c WHERE c.source LIKE \'РЭ%\' '
+                . 'AND NOT EXISTS (SELECT 1 FROM cause_fixes x WHERE x.cause_id = c.id)',
+            'ремонт без причины' => 'SELECT COUNT(*) FROM fixes f WHERE f.source LIKE \'РЭ%\' '
+                . 'AND NOT EXISTS (SELECT 1 FROM cause_fixes x WHERE x.fix_id = f.id)',
+            'ремонт без шагов' => 'SELECT COUNT(*) FROM fixes f WHERE f.source LIKE \'РЭ%\' '
+                . 'AND NOT EXISTS (SELECT 1 FROM fix_steps x WHERE x.fix_id = f.id)',
+        ];
+
+        foreach ($checks as $label => $sql) {
+            $this->assertSame(0, (int) $this->pdo->query($sql)->fetchColumn(), "Найдено: $label");
+        }
+
+        $this->assertGreaterThanOrEqual(14, (int) $this->pdo->query('SELECT COUNT(*) FROM symptoms')->fetchColumn());
+        $this->assertGreaterThanOrEqual(19, (int) $this->pdo->query('SELECT COUNT(*) FROM fixes')->fetchColumn());
+    }
+
+    public function testBrakeRelatedFixesCarrySafetyNote(): void
+    {
+        $missing = $this->pdo->query(
+            "SELECT title FROM fixes WHERE (title LIKE '%тормоз%' OR title LIKE '%ограничитель скорости%' "
+            . "OR title LIKE '%замок%') AND (safety_note IS NULL OR safety_note = '')"
+        )->fetchAll(PDO::FETCH_COLUMN);
+
+        $this->assertSame([], $missing, 'У ремонтов узлов безопасности нет пометки по технике безопасности');
+    }
+
     public function testForeignKeyRejectsUnknownModel(): void
     {
         $this->expectException(PDOException::class);

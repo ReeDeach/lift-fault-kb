@@ -64,8 +64,15 @@ jobs:
       - name: Повторный запуск миграций (должен ничего не применить)
         run: php bin/migrate.php migrate
 
-      - name: Сиды
-        run: php bin/migrate.php seed
+      - name: Сиды (дважды: проверка идемпотентности)
+        run: |
+          for run in 1 2; do
+            if ! out=$(php bin/migrate.php seed 2>&1); then
+              echo "::error title=Ошибка сида::${out//$'\n'/%0A}"
+              exit 1
+            fi
+          done
+          echo "$out"
 
       - name: PHPUnit
         run: vendor/bin/phpunit
