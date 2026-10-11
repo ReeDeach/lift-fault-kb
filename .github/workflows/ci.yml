@@ -54,7 +54,12 @@ jobs:
         run: find src public tests bin -name '*.php' -print0 | xargs -0 -n1 php -l
 
       - name: Миграции на MySQL 8
-        run: php bin/migrate.php migrate
+        run: |
+          if ! out=$(php bin/migrate.php migrate 2>&1); then
+            echo "::error title=Ошибка миграции::${out//$'\n'/%0A}"
+            exit 1
+          fi
+          echo "$out"
 
       - name: Повторный запуск миграций (должен ничего не применить)
         run: php bin/migrate.php migrate
