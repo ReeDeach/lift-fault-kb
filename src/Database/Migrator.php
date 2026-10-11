@@ -109,15 +109,18 @@ final class Migrator
      */
     public static function splitStatements(string $sql): array
     {
+        // Переводы строк перечислены явно, а не через \R: без флага /u класс \R
+        // считает переводом строки байт 0x85, который входит в UTF-8 букву «х»
+        // и ряд других кириллических букв, и рвёт строки посреди слова.
         $lines = [];
-        foreach (preg_split('/\R/', $sql) ?: [] as $line) {
+        foreach (preg_split('/\r\n|\n|\r/', $sql) ?: [] as $line) {
             if (str_starts_with(ltrim($line), '--')) {
                 continue;
             }
             $lines[] = $line;
         }
 
-        $parts = preg_split('/;\s*(?:\R|$)/', implode("\n", $lines)) ?: [];
+        $parts = preg_split('/;[ \t]*(?:\r\n|\n|\r|$)/', implode("\n", $lines)) ?: [];
 
         return array_values(array_filter(
             array_map('trim', $parts),

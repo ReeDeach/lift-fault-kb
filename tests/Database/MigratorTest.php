@@ -48,6 +48,18 @@ final class MigratorTest extends TestCase
         );
     }
 
+    public function testSplitStatementsDoesNotBreakCyrillicText(): void
+    {
+        // «х» в UTF-8 содержит байт 0x85, который \R без /u принимает за перевод строки.
+        $sql = "-- только техническое описание\n"
+            . "INSERT INTO a (name) VALUES ('хлеб, хмель, чехол');\n";
+
+        $this->assertSame(
+            ["INSERT INTO a (name) VALUES ('хлеб, хмель, чехол')"],
+            Migrator::splitStatements($sql),
+        );
+    }
+
     public function testAppliesPendingInNameOrder(): void
     {
         $this->write('002_insert.sql', "INSERT INTO t VALUES (1);\n");
