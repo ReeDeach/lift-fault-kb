@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Controller;
 
 use App\Diagnosis\CandidateFinder;
+use App\Diagnosis\CodeDetector;
 use App\Diagnosis\Diagnoser;
 use App\Http\HttpException;
 use App\Http\Request;
@@ -75,12 +76,20 @@ final class DiagnoseController
         $owner = $modelIds === null ? null : ['models' => $modelIds, 'controllers' => $this->catalog->controllerIds($modelIds)];
 
         $description = trim($description);
+
+        // Поле кода пустое, но код написан в тексте («ошибка 49, 50») — берём его оттуда
+        $detected = [];
+        if ($codes === null) {
+            $detected = CodeDetector::detect($description);
+            $codes = $detected === [] ? null : $detected;
+        }
+
         $candidates = $this->finder->find($description, $modelIds, $owner, $codes);
         $result = $this->diagnoser->diagnose(
             ['description' => $description, 'model' => $strings['model'], 'code' => $codes === null ? null : implode(' ', $codes)],
             $candidates,
         );
 
-        return Response::json($result + ['disclaimer' => Disclaimer::TEXT]);
+        return Response::json($result + ['detected_codes' => $detected, 'disclaimer' => Disclaimer::TEXT]);
     }
 }

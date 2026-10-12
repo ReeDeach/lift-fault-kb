@@ -177,6 +177,10 @@
 
     function renderDiagnosis(data) {
         var $out = $('<div>');
+        if (data.detected_codes && data.detected_codes.length) {
+            $out.append(el('div', 'status status--muted').append(icon('hash'),
+                el('span', '', 'Коды из описания: ' + data.detected_codes.join(', '))));
+        }
         $out.append(aiStatus(data.ai));
 
         if (data.safety && data.safety.length) {
@@ -188,7 +192,8 @@
 
         if (data.ai.summary) { $out.append(el('p', 'summary', data.ai.summary)); }
 
-        if (!data.causes.length) {
+        // При status=skipped объяснение уже в статусе, второй такой же блок не нужен
+        if (!data.causes.length && data.ai.status !== 'skipped') {
             $out.append(el('div', 'card empty', 'В базе нет подходящих причин. Уточните описание или укажите код ошибки.'));
         }
 
