@@ -51,15 +51,73 @@ final class SchemaTest extends TestCase
         $this->assertArrayHasKey('otis', $names);
     }
 
-    public function testSeededModelsAndCodesExist(): void
+    public function testModelSeesCodesOfItsControllers(): void
     {
         $codes = $this->pdo->query(
-            "SELECT fc.code FROM fault_codes fc JOIN models m ON m.id = fc.model_id WHERE m.name = '0401К'"
+            'SELECT fc.code FROM fault_codes fc '
+            . 'JOIN model_controllers mc ON mc.controller_id = fc.controller_id '
+            . "JOIN models m ON m.id = mc.model_id WHERE m.name = '0401К'"
         )->fetchAll(PDO::FETCH_COLUMN);
 
-        $this->assertContains('45', $codes);
-        $this->assertContains('E36', $codes);
+        foreach (['43', '44', '45', 'A0', 'b9', 'E36'] as $code) {
+            $this->assertContains($code, $codes, "У модели 0401К нет кода $code");
+        }
+        $this->assertGreaterThanOrEqual(70, count($codes));
+    }
 
+    public function testEveryFaultCodeHasExactlyOneOwner(): void
+    {
+        $bad = (int) $this->pdo->query(
+            'SELECT COUNT(*) FROM fault_codes WHERE (model_id IS NULL) = (controller_id IS NULL)'
+        )->fetchColumn();
+
+        $this->assertSame(0, $bad, 'Код принадлежит и модели, и устройству, либо ни тому ни другому');
+    }
+
+    public function testSameCodeMeansDifferentThingsInDifferentControllers(): void
+    {
+        $titles = $this->pdo->query(
+            "SELECT c.name, fc.title FROM fault_codes fc JOIN controllers c ON c.id = fc.controller_id "
+            . "WHERE fc.code = '45' AND c.kind = 'control_unit'"
+        )->fetchAll(PDO::FETCH_KEY_PAIR);
+
+        $auto = $titles['УЛ ФБИР.484430.013 (ГОСТ 33984.1, автоматические двери)'] ?? '';
+        $manual = $titles['УЛ ФБИР.484440.500 (ГОСТ 33984.1, ручные двери)'] ?? '';
+
+        $this->assertStringContainsString('преобразователя частоты', $auto);
+        $this->assertStringContainsString('устройства контроля скорости', $manual);
+    }
+
+    public function testControllerCodesAreDescribedAndCaused(): void
+    {
+        $noDescription = (int) $this->pdo->query(
+            "SELECT COUNT(*) FROM fault_codes WHERE controller_id IS NOT NULL AND (description IS NULL OR description = '' OR source IS NULL)"
+        )->fetchColumn();
+        $this->assertSame(0, $noDescription, 'Код устройства без описания или источника');
+
+        $orphanCauses = (int) $this->pdo->query(
+            "SELECT COUNT(*) FROM causes c WHERE (c.source LIKE 'ФБИР%' OR c.source LIKE 'ФАИД%') "
+            . 'AND NOT EXISTS (SELECT 1 FROM fault_code_causes x WHERE x.cause_id = c.id)'
+        )->fetchColumn();
+        $this->assertSame(0, $orphanCauses, 'Причина из РЭ УЛ не привязана ни к одному коду');
+
+        $linked = (int) $this->pdo->query(
+            'SELECT COUNT(*) FROM fault_code_causes'
+        )->fetchColumn();
+        $this->assertGreaterThanOrEqual(120, $linked);
+    }
+
+    public function testLatinCodesAreStoredConsistently(): void
+    {
+        $cyrillic = $this->pdo->query(
+            "SELECT code FROM fault_codes WHERE code REGEXP '[А-Яа-я]'"
+        )->fetchAll(PDO::FETCH_COLUMN);
+
+        $this->assertSame([], $cyrillic, 'Коды должны быть записаны латиницей');
+    }
+
+    public function testSeededModelsExist(): void
+    {
         $models = $this->pdo->query(
             "SELECT m.name FROM models m JOIN manufacturers f ON f.id = m.manufacturer_id WHERE f.slug = 'mogilevlift'"
         )->fetchAll(PDO::FETCH_COLUMN);
