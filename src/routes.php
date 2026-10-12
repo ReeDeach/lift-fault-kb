@@ -6,12 +6,16 @@ use App\Admin\AdminRepository;
 use App\Controller\AdminController;
 use App\Controller\CatalogController;
 use App\Controller\CodeController;
+use App\Controller\DiagnoseController;
 use App\Controller\HealthController;
 use App\Controller\SearchController;
+use App\Diagnosis\CandidateFinder;
+use App\Diagnosis\Diagnoser;
 use App\Http\AdminAuth;
 use App\Http\Router;
 use App\Repository\CatalogRepository;
 use App\Repository\FaultCodeRepository;
+use App\Search\ManticoreIndex;
 use App\Search\SearchService;
 use App\Support\Services;
 
@@ -35,10 +39,27 @@ return static function (Router $router, ?Services $services = null): void {
     $router->get('/api/codes', static fn ($r) => $codes()->index($r));
     $router->get('/api/codes/{id}', static fn ($r) => $codes()->show($r));
 
+    $search = static fn (): SearchService => new SearchService(
+        $services->manticore(),
+        $services->pdo(),
+        new FaultCodeRepository($services->pdo()),
+    );
+
     $router->get('/api/search', static fn ($r) => (new SearchController(
         new CatalogRepository($services->pdo()),
-        new SearchService($services->manticore(), $services->pdo(), new FaultCodeRepository($services->pdo())),
+        $search(),
     ))->search($r));
+
+    // Диагностика работает и без Manticore (только по коду), и без ИИ (список причин из базы)
+    $router->post('/api/diagnose', static fn ($r) => (new DiagnoseController(
+        new CatalogRepository($services->pdo()),
+        new CandidateFinder(
+            $services->pdo(),
+            new FaultCodeRepository($services->pdo()),
+            ManticoreIndex::isConfigured() ? $search : null,
+        ),
+        new Diagnoser($services->languageModel()),
+    ))->diagnose($r));
 
     // Админ-API: каждый обработчик закрыт токеном
     $admin = static fn (): AdminController => new AdminController(new AdminRepository($services->pdo()), $services->searchIndex());
@@ -52,7 +73,4 @@ return static function (Router $router, ?Services $services = null): void {
     $router->delete('/api/admin/{entity}/{id}', $guarded('delete'));
     $router->put('/api/admin/{entity}/{id}/{target}/{targetId}', $guarded('link'));
     $router->delete('/api/admin/{entity}/{id}/{target}/{targetId}', $guarded('unlink'));
-
-    // Следующий этап:
-    // POST /api/diagnose   — ИИ-диагностика
 };
