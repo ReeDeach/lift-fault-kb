@@ -7,10 +7,12 @@ use App\Controller\AdminController;
 use App\Controller\CatalogController;
 use App\Controller\CodeController;
 use App\Controller\HealthController;
+use App\Controller\SearchController;
 use App\Http\AdminAuth;
 use App\Http\Router;
 use App\Repository\CatalogRepository;
 use App\Repository\FaultCodeRepository;
+use App\Search\SearchService;
 use App\Support\Services;
 
 /**
@@ -33,6 +35,11 @@ return static function (Router $router, ?Services $services = null): void {
     $router->get('/api/codes', static fn ($r) => $codes()->index($r));
     $router->get('/api/codes/{id}', static fn ($r) => $codes()->show($r));
 
+    $router->get('/api/search', static fn ($r) => (new SearchController(
+        new CatalogRepository($services->pdo()),
+        new SearchService($services->manticore(), $services->pdo(), new FaultCodeRepository($services->pdo())),
+    ))->search($r));
+
     // Админ-API: каждый обработчик закрыт токеном
     $admin = static fn (): AdminController => new AdminController(new AdminRepository($services->pdo()), $services->searchIndex());
     $token = $services->adminToken();
@@ -46,7 +53,6 @@ return static function (Router $router, ?Services $services = null): void {
     $router->put('/api/admin/{entity}/{id}/{target}/{targetId}', $guarded('link'));
     $router->delete('/api/admin/{entity}/{id}/{target}/{targetId}', $guarded('unlink'));
 
-    // Следующие этапы:
-    // GET  /api/search     — полнотекстовый поиск (Manticore)
+    // Следующий этап:
     // POST /api/diagnose   — ИИ-диагностика
 };

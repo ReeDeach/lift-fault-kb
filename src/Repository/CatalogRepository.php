@@ -111,6 +111,25 @@ final class CatalogRepository
         return $ids;
     }
 
+    /**
+     * id устройств управления, установленных на моделях.
+     *
+     * @param list<int> $modelIds
+     * @return list<int>
+     */
+    public function controllerIds(array $modelIds): array
+    {
+        if ($modelIds === []) {
+            return [];
+        }
+
+        $in = implode(',', array_map('intval', $modelIds));
+
+        return array_map('intval', $this->pdo->query(
+            "SELECT DISTINCT controller_id FROM model_controllers WHERE model_id IN ($in)"
+        )->fetchAll(PDO::FETCH_COLUMN));
+    }
+
     private function requireManufacturer(string $slug): int
     {
         $stmt = $this->pdo->prepare('SELECT id FROM manufacturers WHERE slug = ?');

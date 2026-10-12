@@ -5,9 +5,13 @@ declare(strict_types=1);
 namespace App\Support;
 
 use App\Database\Connection;
+use App\Http\HttpException;
+use App\Search\Documents;
+use App\Search\ManticoreIndex;
 use App\Search\SearchIndex;
 use Closure;
 use PDO;
+use PDOException;
 
 /**
  * Простейший контейнер: подключение к БД создаётся лениво, при первом обращении,
@@ -16,6 +20,8 @@ use PDO;
 final class Services
 {
     private ?PDO $pdo = null;
+
+    private ?PDO $manticore = null;
 
     /**
      * @param (Closure(): PDO)|null $pdoFactory
@@ -45,10 +51,33 @@ final class Services
     }
 
     /**
-     * Индекс, который обновляется после записи через админ-API. null — поиска нет.
+     * Подключение к Manticore. Если он недоступен — 503, остальное API продолжает работать.
+     */
+    public function manticore(): PDO
+    {
+        if ($this->manticore === null) {
+            try {
+                $this->manticore = ManticoreIndex::connect();
+            } catch (PDOException $e) {
+                error_log('manticore: ' . $e->getMessage());
+                throw new HttpException(503, 'Поиск временно недоступен');
+            }
+        }
+
+        return $this->manticore;
+    }
+
+    /**
+     * Индекс, который обновляется после записи через админ-API. null — поиск не настроен.
      */
     public function searchIndex(): ?SearchIndex
     {
-        return $this->searchIndexFactory !== null ? ($this->searchIndexFactory)($this) : null;
+        if ($this->searchIndexFactory !== null) {
+            return ($this->searchIndexFactory)($this);
+        }
+
+        return ManticoreIndex::isConfigured()
+            ? new ManticoreIndex(fn (): PDO => $this->manticore(), new Documents($this->pdo()))
+            : null;
     }
 }

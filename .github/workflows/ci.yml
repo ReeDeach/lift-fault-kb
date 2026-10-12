@@ -23,12 +23,24 @@ jobs:
           --health-timeout=5s
           --health-retries=20
 
+      manticore:
+        image: manticoresearch/manticore:29.9.0
+        ports:
+          - 9306:9306
+        options: >-
+          --health-cmd="mysql -h0 -P9306 -e 'SHOW STATUS'"
+          --health-interval=5s
+          --health-timeout=5s
+          --health-retries=20
+
     env:
       DB_HOST: 127.0.0.1
       DB_PORT: 3306
       DB_NAME: lift_kb
       DB_USER: root
       DB_PASSWORD: root
+      MANTICORE_HOST: 127.0.0.1
+      MANTICORE_PORT: 9306
 
     steps:
       - uses: actions/checkout@v4
@@ -73,6 +85,9 @@ jobs:
             fi
           done
           echo "$out"
+
+      - name: Поисковый индекс Manticore
+        run: php bin/search.php rebuild
 
       - name: PHPUnit
         run: vendor/bin/phpunit
