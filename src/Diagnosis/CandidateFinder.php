@@ -84,6 +84,9 @@ final class CandidateFinder
         }
 
         $this->addFromSearch($hits);
+        if ($owner !== null) {
+            $this->dropForeign($owner);
+        }
 
         $causes = array_values($this->causes);
         usort($causes, static fn (array $a, array $b): int => [$b['score'], $a['id']] <=> [$a['score'], $b['id']]);
@@ -126,6 +129,38 @@ final class CandidateFinder
             error_log('diagnose search: ' . $e->getMessage());
 
             return [[], 'unavailable'];
+        }
+    }
+
+    /**
+     * Убирает причины, которые привязаны только к кодам чужих устройств и моделей.
+     * Поиск по тексту не знает производителя: без этого для лифта Doppler всплывала бы
+     * причина из руководства на привод дверей Могилёвлифтмаша. Причины без привязки
+     * к кодам (общие, через симптомы) остаются.
+     *
+     * @param array{models: list<int>, controllers: list<int>} $owner
+     */
+    private function dropForeign(array $owner): void
+    {
+        if ($this->causes === []) {
+            return;
+        }
+
+        $ownCondition = 'fc.model_id IN (' . implode(',', $owner['models'] ?: [0]) . ')';
+        if ($owner['controllers'] !== []) {
+            $ownCondition .= ' OR fc.controller_id IN (' . implode(',', $owner['controllers']) . ')';
+        }
+
+        $in = implode(',', array_keys($this->causes));
+        $rows = $this->pdo->query(
+            "SELECT fcc.cause_id, MAX($ownCondition) AS own FROM fault_code_causes fcc "
+            . "JOIN fault_codes fc ON fc.id = fcc.fault_code_id WHERE fcc.cause_id IN ($in) GROUP BY fcc.cause_id"
+        )->fetchAll(PDO::FETCH_KEY_PAIR);
+
+        foreach ($rows as $causeId => $own) {
+            if ((int) $own === 0) {
+                unset($this->causes[(int) $causeId]);
+            }
         }
     }
 

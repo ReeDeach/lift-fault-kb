@@ -53,6 +53,13 @@ final class FaultCodeRepository
         }
 
         if ($codes !== null) {
+            // Часть контроллеров (E-type) показывает коды двумя цифрами: «5» должно найти и «05»
+            foreach ($codes as $c) {
+                if (preg_match('/^\d$/', $c) === 1) {
+                    $codes[] = '0' . $c;
+                }
+            }
+            $codes = array_values(array_unique($codes));
             $where[] = 'fc.code IN (' . implode(', ', array_fill(0, count($codes), '?')) . ')';
             array_push($params, ...$codes);
         }

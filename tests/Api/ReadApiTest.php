@@ -116,6 +116,16 @@ final class ReadApiTest extends TestCase
         $this->assertSame(400, $tooMany);
     }
 
+    public function testDopplerEtypeCodeFoundWithOrWithoutLeadingZero(): void
+    {
+        [$status, $data] = $this->get('/api/codes', ['model' => 'Traction MRL ECO II VVVF', 'code' => '5', 'expand' => 'tree']);
+
+        $this->assertSame(200, $status);
+        $this->assertSame(['05'], array_column($data['items'], 'code'));
+        $this->assertSame('Контроллер E-type (Doppler)', $data['items'][0]['owner']['name']);
+        $this->assertGreaterThanOrEqual(3, count($data['items'][0]['causes']));
+    }
+
     public function testUnknownCodeIsEmptyListNotError(): void
     {
         [$status, $data] = $this->get('/api/codes', ['model' => '0401К', 'code' => 'ZZ99']);
