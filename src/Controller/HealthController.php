@@ -6,12 +6,11 @@ namespace App\Controller;
 
 use App\Http\Request;
 use App\Http\Response;
+use App\Support\Disclaimer;
 
 final class HealthController
 {
-    public const DISCLAIMER = 'Справочная система. Не заменяет документацию производителя '
-        . 'и правила техники безопасности. Работы на лифтовом оборудовании выполняет '
-        . 'только обученный и допущенный персонал.';
+    public const DISCLAIMER = Disclaimer::TEXT;
 
     public function __invoke(Request $request): Response
     {

@@ -2,7 +2,9 @@
 
 declare(strict_types=1);
 
+use App\Http\HttpException;
 use App\Http\Request;
+use App\Http\Response;
 use App\Http\Router;
 use Dotenv\Dotenv;
 
@@ -14,6 +16,13 @@ if (is_file($root . '/.env')) {
 }
 
 $router = new Router();
-(require $root . '/src/routes.php')($router);
+(require $root . "/src/routes.php")($router, new \App\Support\Services());
 
-$router->dispatch(Request::fromGlobals())->send();
+try {
+    $request = Request::fromGlobals();
+} catch (HttpException $e) {
+    Response::error($e->getMessage(), $e->status, $e->fields)->send();
+    exit;
+}
+
+$router->dispatch($request)->send();
