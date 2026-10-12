@@ -44,14 +44,15 @@ final class CandidateFinder
 
     /**
      * @param list<int>|null $modelIds
+     * @param list<string>|null $codes коды с индикатора (например 44 и подсказка C6)
      * @param array{models: list<int>, controllers: list<int>}|null $owner
      * @return array{causes: list<array<string, mixed>>, codes: list<array<string, mixed>>, cases: list<array<string, mixed>>, search: string}
      */
-    public function find(string $description, ?array $modelIds, ?array $owner, ?string $code): array
+    public function find(string $description, ?array $modelIds, ?array $owner, ?array $codes): array
     {
         $this->causes = [];
 
-        $named = $code !== null ? $this->codes->search($modelIds, $code, 10, 0)['items'] : [];
+        $named = $codes !== null ? $this->codes->search($modelIds, $codes, 10, 0)['items'] : [];
         [$hits, $searchStatus] = $this->searchHits($description, $owner);
 
         // Коды из поиска по тексту нужны, только если пользователь код не назвал: иначе число

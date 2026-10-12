@@ -32,9 +32,9 @@ final class QueryBench
 
         return [
             'GET /api/codes?code=45 — код во всех устройствах' =>
-                static fn () => $codes->search(null, '45', 20, 0),
+                static fn () => $codes->search(null, ['45'], 20, 0),
             'GET /api/codes?model=1000К&code=45 — код в модели' =>
-                static fn () => $codes->search($catalog->resolveModelIds(self::MODEL, null), '45', 20, 0),
+                static fn () => $codes->search($catalog->resolveModelIds(self::MODEL, null), ['45'], 20, 0),
             'GET /api/codes?model=1000К — первая страница кодов модели' =>
                 static fn () => $codes->search($catalog->resolveModelIds(self::MODEL, null), null, 20, 0),
             'GET /api/codes?model=1000К&expand=tree — дерево для 20 кодов' =>

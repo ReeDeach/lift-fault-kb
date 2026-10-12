@@ -111,6 +111,16 @@ final class DiagnoseApiTest extends TestCase
         $this->assertSame(['E36'], array_column($data['codes'], 'code'));
     }
 
+    public function testCodeWithHintTakesBoth(): void
+    {
+        [$status, $data] = $this->post(['description' => 'Пассажиры застряли у этажа', 'model' => '0401К', 'code' => '44 С6']);
+
+        $this->assertSame(200, $status);
+        $this->assertSame(['44', 'C6'], array_column($data['codes'], 'code'));
+        $prompt = json_decode(substr($this->calls[0]['prompt'], strpos($this->calls[0]['prompt'], '{')), true);
+        $this->assertSame('44 C6', $prompt['код_на_индикаторе']);
+    }
+
     public function testDescriptionAloneFindsCausesThroughSymptoms(): void
     {
         [, $data] = $this->post(['description' => 'При пуске лебёдка гудит, свет в кабине тускнеет']);

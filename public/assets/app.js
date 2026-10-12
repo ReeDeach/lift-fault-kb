@@ -272,9 +272,17 @@
                 $result.append(el('div', 'card empty', 'Код ' + code + ' не найден' + (modelId() ? ' для выбранной модели' : '') + '.'));
                 return;
             }
-            if (data.items.length > 1) {
+            // Один и тот же номер в разных устройствах значит разное. Несколько разных кодов
+            // («44 C6») — обычный случай, предупреждать не о чем.
+            var seen = {};
+            var repeated = $.grep(data.items, function (item) {
+                var key = item.code.toUpperCase();
+                seen[key] = (seen[key] || 0) + 1;
+                return seen[key] === 2;
+            });
+            if (repeated.length) {
                 $result.append(el('div', 'status status--warn',
-                    'Код встречается в ' + data.total + ' устройствах и значит в них разное. Выберите модель, чтобы оставить нужный.'));
+                    'Код ' + repeated[0].code + ' встречается в нескольких устройствах и значит в них разное. Выберите модель, чтобы оставить нужный.'));
             }
             $.each(data.items, function (_, item) { $result.append(renderCode(item)); });
         }, function (err) {

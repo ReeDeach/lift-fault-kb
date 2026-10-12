@@ -59,10 +59,11 @@ final class DiagnoseController
             $strings[$name] = $value === null || trim($value) === '' ? null : trim($value);
         }
 
+        $codes = null;
         if (($strings['code'] ?? null) !== null) {
-            $strings['code'] = CodeNormalizer::toLatin($strings['code']);
-            if (!CodeNormalizer::isValidCode($strings['code'])) {
-                $fields['code'] = 'Код: до 32 символов, буквы, цифры, точка, дефис и подчёркивание';
+            $codes = CodeNormalizer::parseList($strings['code']);
+            if ($codes === null) {
+                $fields['code'] = CodeNormalizer::LIST_RULE;
             }
         }
 
@@ -74,9 +75,9 @@ final class DiagnoseController
         $owner = $modelIds === null ? null : ['models' => $modelIds, 'controllers' => $this->catalog->controllerIds($modelIds)];
 
         $description = trim($description);
-        $candidates = $this->finder->find($description, $modelIds, $owner, $strings['code']);
+        $candidates = $this->finder->find($description, $modelIds, $owner, $codes);
         $result = $this->diagnoser->diagnose(
-            ['description' => $description, 'model' => $strings['model'], 'code' => $strings['code']],
+            ['description' => $description, 'model' => $strings['model'], 'code' => $codes === null ? null : implode(' ', $codes)],
             $candidates,
         );
 

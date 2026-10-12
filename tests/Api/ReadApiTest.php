@@ -105,6 +105,17 @@ final class ReadApiTest extends TestCase
         $this->assertGreaterThanOrEqual(3, count($owners), 'Код 45 должен вернуться для всех вариантов УЛ');
     }
 
+    public function testSeveralCodesAsShownOnIndicator(): void
+    {
+        [$status, $data] = $this->get('/api/codes', ['model' => '0401К', 'code' => '44 С6']);
+
+        $this->assertSame(200, $status);
+        $this->assertSame(['44', 'C6'], array_column($data['items'], 'code'));
+
+        [$tooMany] = $this->get('/api/codes', ['code' => '1 2 3 4 5 6']);
+        $this->assertSame(400, $tooMany);
+    }
+
     public function testUnknownCodeIsEmptyListNotError(): void
     {
         [$status, $data] = $this->get('/api/codes', ['model' => '0401К', 'code' => 'ZZ99']);

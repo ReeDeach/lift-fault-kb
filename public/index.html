@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>Неисправности лифтов</title>
     <meta name="description" content="База знаний по неисправностям лифтов: коды ошибок, поиск по симптомам, ИИ-диагностика с проверкой по базе.">
-    <link rel="stylesheet" href="/assets/app.css">
+    <link rel="stylesheet" href="/assets/app.css?v=2">
 </head>
 <body>
 <header class="top">
@@ -40,7 +40,7 @@
             <div class="form__row">
                 <label class="field field--code">
                     <span class="field__label">Код на индикаторе</span>
-                    <input name="code" maxlength="32" autocomplete="off" placeholder="45, E36, A2…">
+                    <input name="code" maxlength="64" autocomplete="off" autocapitalize="characters" autocorrect="off" spellcheck="false" placeholder="45, E36, 44 C6…">
                 </label>
                 <button class="btn btn--primary" type="submit">Разобрать</button>
             </div>
@@ -54,7 +54,7 @@
         <form class="card form form--inline" id="code-form" novalidate>
             <label class="field field--grow">
                 <span class="field__label">Код ошибки</span>
-                <input name="code" maxlength="32" autocomplete="off" placeholder="45, E36, C6…" required>
+                <input name="code" maxlength="64" autocomplete="off" autocapitalize="characters" autocorrect="off" spellcheck="false" placeholder="45, E36, 44 C6…" required>
             </label>
             <button class="btn btn--primary" type="submit">Найти</button>
             <p class="form__error" role="alert" hidden></p>
@@ -93,6 +93,6 @@
 <script src="https://code.jquery.com/jquery-3.7.1.min.js"
         integrity="sha384-1H217gwSVyLSIfaLxHbE7dRb3v4mYCKbpQvzx0cegeju1MVsGrX5xXxAvs/HgeFs"
         crossorigin="anonymous"></script>
-<script src="/assets/app.js"></script>
+<script src="/assets/app.js?v=2"></script>
 </body>
 </html>

@@ -25,9 +25,10 @@ final class FaultCodeRepository
      * $modelIds === null — без фильтра по модели.
      *
      * @param list<int>|null $modelIds
+     * @param list<string>|null $codes коды латиницей; null — все коды
      * @return array{items: list<array<string, mixed>>, total: int}
      */
-    public function search(?array $modelIds, ?string $code, int $limit, int $offset): array
+    public function search(?array $modelIds, ?array $codes, int $limit, int $offset): array
     {
         $where = [];
         $params = [];
@@ -51,9 +52,9 @@ final class FaultCodeRepository
             $where[] = "($owner)";
         }
 
-        if ($code !== null) {
-            $where[] = 'fc.code = ?';
-            $params[] = $code;
+        if ($codes !== null) {
+            $where[] = 'fc.code IN (' . implode(', ', array_fill(0, count($codes), '?')) . ')';
+            array_push($params, ...$codes);
         }
 
         $clause = $where === [] ? '' : ' WHERE ' . implode(' AND ', $where);
