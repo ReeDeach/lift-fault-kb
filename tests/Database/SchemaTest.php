@@ -107,6 +107,49 @@ final class SchemaTest extends TestCase
         $this->assertGreaterThanOrEqual(120, $linked);
     }
 
+    public function testCasesAreSeededAndLinkedToCodes(): void
+    {
+        $total = (int) $this->pdo->query('SELECT COUNT(*) FROM cases')->fetchColumn();
+        $this->assertGreaterThanOrEqual(20, $total);
+
+        $noSource = (int) $this->pdo->query(
+            "SELECT COUNT(*) FROM cases WHERE source IS NULL OR source = ''"
+        )->fetchColumn();
+        $this->assertSame(0, $noSource, 'У случая нет источника');
+
+        // Если в сиде опечатка в названии устройства или коде, связь молча пропадает.
+        $linked = (int) $this->pdo->query(
+            'SELECT COUNT(*) FROM cases WHERE fault_code_id IS NOT NULL'
+        )->fetchColumn();
+        $this->assertGreaterThanOrEqual(12, $linked, 'Случаи не привязались к кодам УЛ');
+
+        $wrongController = (int) $this->pdo->query(
+            'SELECT COUNT(*) FROM cases c JOIN fault_codes fc ON fc.id = c.fault_code_id '
+            . "JOIN controllers k ON k.id = fc.controller_id WHERE k.name NOT LIKE 'УЛ ФБИР.484430.013%'"
+        )->fetchColumn();
+        $this->assertSame(0, $wrongController);
+    }
+
+    public function testCasesContainNoPersonalData(): void
+    {
+        $texts = $this->pdo->query(
+            "SELECT CONCAT_WS(' ', description, notes) FROM cases"
+        )->fetchAll(PDO::FETCH_COLUMN);
+
+        $patterns = [
+            'фамилия с инициалами' => '/[А-ЯЁ][а-яё]+\s+[А-ЯЁ]\.\s?[А-ЯЁ]\./u',
+            'регистрационный номер лифта' => '/\b\d{4}\s?н\b/u',
+            'телефон' => '/\+?\d[\d\s\-()]{8,}\d/u',
+            'адрес' => '/\b(ул|пр|пер|д|кв)\.\s?\S|\bулица\b|\bпроспект\b/u',
+        ];
+
+        foreach ($texts as $text) {
+            foreach ($patterns as $label => $regex) {
+                $this->assertSame(0, preg_match($regex, (string) $text), "В случае найдено: $label — $text");
+            }
+        }
+    }
+
     public function testLatinCodesAreStoredConsistently(): void
     {
         $cyrillic = $this->pdo->query(
