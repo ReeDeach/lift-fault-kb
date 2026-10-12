@@ -29,6 +29,9 @@ final class CandidateFinder
     private const SEARCH_HITS = 15;
     private const SEARCH_CODES = 5;
 
+    /** Описание длинное, и с симптомом совпадает лишь часть слов: хватает трети */
+    private const SEARCH_SHARE = 0.34;
+
     /** @var array<int, array<string, mixed>> */
     private array $causes = [];
 
@@ -116,7 +119,7 @@ final class CandidateFinder
 
         try {
             return [
-                ($this->search)()->search($description, ['codes', 'symptoms', 'causes'], $owner, self::SEARCH_HITS, 0)['items'],
+                ($this->search)()->search($description, ['codes', 'symptoms', 'causes'], $owner, self::SEARCH_HITS, 0, self::SEARCH_SHARE)['items'],
                 'ok',
             ];
         } catch (Throwable $e) {
