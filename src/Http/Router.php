@@ -8,7 +8,8 @@ use Throwable;
 
 /**
  * Минимальный роутер: статические пути и параметры вида /api/codes/{id}.
- * Обработчик — callable(Request): Response.
+ * Обработчик — callable(Request): Response. Маршруты проверяются в порядке добавления,
+ * побеждает первый подходящий по пути и методу.
  */
 final class Router
 {
@@ -41,6 +42,11 @@ final class Router
         return $this->add('PUT', $pattern, $handler);
     }
 
+    public function patch(string $pattern, callable $handler): self
+    {
+        return $this->add('PATCH', $pattern, $handler);
+    }
+
     public function delete(string $pattern, callable $handler): self
     {
         return $this->add('DELETE', $pattern, $handler);
@@ -64,6 +70,8 @@ final class Router
 
             try {
                 return ($route['handler'])($request->withParams($params));
+            } catch (HttpException $e) {
+                return Response::error($e->getMessage(), $e->status, $e->fields);
             } catch (Throwable $e) {
                 return Response::error('Внутренняя ошибка сервера', 500);
             }

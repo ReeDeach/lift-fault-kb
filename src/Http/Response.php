@@ -16,18 +16,29 @@ final class Response
     ) {
     }
 
-    public static function json(mixed $data, int $status = 200): self
+    /**
+     * @param array<string, string> $headers
+     */
+    public static function json(mixed $data, int $status = 200, array $headers = []): self
     {
         return new self(
             $status,
             json_encode($data, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR),
-            ['Content-Type' => 'application/json; charset=utf-8'],
+            ['Content-Type' => 'application/json; charset=utf-8'] + $headers,
         );
     }
 
-    public static function error(string $message, int $status): self
+    /**
+     * @param array<string, string> $fields сообщения по полям для ошибок валидации
+     */
+    public static function error(string $message, int $status, array $fields = []): self
     {
-        return self::json(['error' => ['status' => $status, 'message' => $message]], $status);
+        $error = ['status' => $status, 'message' => $message];
+        if ($fields !== []) {
+            $error['fields'] = $fields;
+        }
+
+        return self::json(['error' => $error], $status);
     }
 
     public function send(): void
