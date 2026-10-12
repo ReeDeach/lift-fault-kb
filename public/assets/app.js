@@ -42,6 +42,11 @@
         return $el;
     }
 
+    function icon(name) {
+        // Разметка статична, данных из API в ней нет
+        return $('<svg aria-hidden="true"><use href="#i-' + name + '"/></svg>');
+    }
+
     function storage(key, value) {
         try {
             if (value === undefined) { return window.localStorage.getItem(key); }
@@ -55,6 +60,7 @@
     }
 
     function loading($target, text) {
+        $target.closest('.panel').addClass('has-result');
         $target.empty().append(el('div', 'loading', text || 'Загрузка…'));
     }
 
@@ -88,7 +94,7 @@
         var $fix = el('div', 'fix');
         $fix.append(el('div', 'fix__title', fix.title));
         if (fix.summary) { $fix.append(el('p', '', fix.summary)); }
-        if (fix.safety_note) { $fix.append(el('p', 'fix__safety', '⚠ ' + fix.safety_note)); }
+        if (fix.safety_note) { $fix.append(el('p', 'fix__safety').append(icon('alert'), el('span', '', fix.safety_note))); }
         if (fix.steps && fix.steps.length) {
             var $steps = el('ol', 'steps');
             $.each(fix.steps, function (_, step) {
@@ -112,19 +118,23 @@
     function renderCases(cases) {
         var $list = el('ul', 'list');
         $.each(cases, function (_, c) {
-            var meta = c.occurred_on + ' · ' + (OUTCOME[c.outcome] || c.outcome) + (c.code ? ' · код ' + c.code : '');
-            $list.append(el('li', 'case').append(el('div', 'case__meta', meta), el('div', '', c.description)));
+            var $meta = el('div', 'case__meta');
+            if (c.code) { $meta.append(el('span', 'plate plate--sm', c.code)); }
+            $meta.append(el('span', '', c.occurred_on));
+            $meta.append(el('span', 'badge badge--dot ' + (c.outcome === 'resolved' ? 'badge--high' : 'badge--medium'), OUTCOME[c.outcome] || c.outcome));
+            $list.append(el('li', 'case').append($meta, el('div', '', c.description)));
         });
         return $list;
     }
 
     function renderCode(item) {
         var $card = el('article', 'card');
-        var $head = el('div', 'code-head')
-            .append(el('span', 'code-head__code', item.code))
-            .append(el('span', 'code-head__title', item.title));
-        if (item.is_safety_related) { $head.append(el('span', 'badge badge--danger', 'цепь безопасности')); }
-        $card.append($head, el('p', 'owner', item.owner.name));
+        var $text = el('div', 'code-head__text')
+            .append(el('h2', 'code-head__title', item.title), el('p', 'owner', item.owner.name));
+        if (item.is_safety_related) {
+            $text.append(el('div', 'cause__meta').append(el('span', 'badge badge--danger badge--dot', 'цепь безопасности')));
+        }
+        $card.append(el('div', 'code-head').append(el('div', 'plate', item.code), $text));
         if (item.description) { $card.append(el('p', 'desc', item.description)); }
 
         if (item.symptoms && item.symptoms.length) {
@@ -136,11 +146,11 @@
 
         if (item.causes && item.causes.length) {
             $card.append(el('h3', 'section-title', 'Причины'));
-            $.each(item.causes, function (i, cause) {
+            $.each(item.causes, function (_, cause) {
                 var badge = cause.direct
                     ? el('span', 'badge badge--high', 'по руководству')
-                    : el('span', 'badge', 'вероятность ' + cause.likelihood + ' из 5');
-                var $cause = el('div', 'cause').css('margin-top', i ? '14px' : 0);
+                    : el('span', 'badge', 'вероятность ' + cause.likelihood + '/5');
+                var $cause = el('div', 'tree-cause');
                 $cause.append(el('div', 'cause__head').append(el('h4', 'cause__title', cause.title), badge));
                 $cause.append(renderFixes(cause.fixes));
                 $card.append($cause);
@@ -150,7 +160,7 @@
         if (item.cases && item.cases.length) {
             $card.append(el('h3', 'section-title', 'Случаи из практики'), renderCases(item.cases));
         }
-        if (item.source) { $card.append(el('p', 'owner', 'Источник: ' + item.source)); }
+        if (item.source) { $card.append(el('p', 'source', 'Источник: ' + item.source)); }
         return $card;
     }
 
@@ -158,10 +168,11 @@
 
     function aiStatus(ai) {
         if (ai.status === 'ok') {
-            return el('div', 'status status--ok', 'Разбор ИИ по данным базы' + (ai.discarded ? ' (отброшено вариантов не из базы: ' + ai.discarded + ')' : ''));
+            return el('div', 'status status--ok').append(icon('pulse'), el('span', '',
+                'Разбор ИИ, причины только из базы' + (ai.discarded ? '. Отброшено вариантов не из базы: ' + ai.discarded : '')));
         }
         var cls = ai.status === 'skipped' ? 'status status--muted' : 'status status--warn';
-        return el('div', cls, ai.message || 'ИИ не использовался');
+        return el('div', cls).append(icon('alert'), el('span', '', ai.message || 'ИИ не использовался'));
     }
 
     function renderDiagnosis(data) {
@@ -169,10 +180,10 @@
         $out.append(aiStatus(data.ai));
 
         if (data.safety && data.safety.length) {
-            var $safety = el('div', 'safety').attr('role', 'note').append(el('strong', '', 'Техника безопасности'));
             var $ul = $('<ul>');
             $.each(data.safety, function (_, note) { $ul.append(el('li', '', note)); });
-            $out.append($safety.append($ul));
+            $out.append(el('div', 'safety').attr('role', 'note')
+                .append(icon('alert'), $('<div>').append(el('strong', '', 'Техника безопасности'), $ul)));
         }
 
         if (data.ai.summary) { $out.append(el('p', 'summary', data.ai.summary)); }
@@ -182,13 +193,13 @@
         }
 
         $.each(data.causes, function (i, cause) {
-            var $card = el('article', 'card cause');
-            var $head = el('div', 'cause__head')
-                .append(el('span', 'cause__num', String(i + 1)), el('h3', 'cause__title', cause.title));
+            var $card = el('article', 'card cause' + (cause.confidence ? ' cause--' + cause.confidence : ''));
+            var $body = el('div', 'cause__body').append(el('h3', 'cause__title', cause.title));
             if (cause.confidence) {
-                $head.append(el('span', 'badge badge--' + cause.confidence, CONFIDENCE[cause.confidence]));
+                $body.append(el('div', 'cause__meta').append(
+                    el('span', 'badge badge--dot badge--' + cause.confidence, CONFIDENCE[cause.confidence])));
             }
-            $card.append($head);
+            $card.append(el('div', 'cause__head').append(el('span', 'cause__num', String(i + 1)), $body));
             if (cause.reasoning) { $card.append(el('p', '', cause.reasoning)); }
             if (cause.first_check) {
                 $card.append(el('p', 'cause__check').append(el('b', '', 'Проверить первым: '), document.createTextNode(cause.first_check)));
@@ -212,8 +223,10 @@
             var $codes = el('ul', 'list');
             $.each(data.codes, function (_, c) {
                 $codes.append($('<li>').append(
-                    $('<a class="hit">').attr('href', '#item/' + c.id)
-                        .append(el('div', 'hit__title', c.code + ' — ' + c.title), el('div', 'hit__snippet', c.owner.name))
+                    $('<a class="hit">').attr('href', '#item/' + c.id).append(
+                        el('span', 'plate plate--sm', c.code),
+                        el('div', 'hit__body').append(el('div', 'hit__title', c.title), el('div', 'hit__snippet', c.owner.name))
+                    )
                 ));
             });
             $out.append(el('h3', 'section-title', 'Коды'), el('div', 'card').append($codes));
@@ -224,7 +237,7 @@
         }
 
         if (data.search === 'unavailable') {
-            $out.append(el('p', 'owner', 'Полнотекстовый поиск недоступен: разбор сделан только по коду.'));
+            $out.append(el('p', 'source', 'Полнотекстовый поиск недоступен: разбор сделан только по коду.'));
         }
         return $out;
     }
@@ -316,14 +329,14 @@
 
     function renderHit(hit) {
         var $title = el('div', 'hit__title');
-        $title.append(el('span', 'badge', TYPES[hit.type]).css('margin-right', '6px'));
-        if (hit.type === 'codes') { $title.append(document.createTextNode(hit.code + ' — ')); }
-        if (hit.title_html) { $title.append($('<span>').html(hit.title_html)); } else { $title.append(document.createTextNode(hit.title)); }
+        if (hit.title_html) { $title.html(hit.title_html); } else { $title.text(hit.title); }
+
+        var $body = el('div', 'hit__body').append($title);
+        if (hit.snippet_html) { $body.append($('<div class="hit__snippet">').html(hit.snippet_html)); }
+        if (hit.type === 'codes' && hit.owner) { $body.append(el('div', 'hit__snippet', hit.owner.name)); }
 
         var $hit = hit.type === 'codes' ? $('<a class="hit">').attr('href', '#item/' + hit.id) : el('div', 'hit');
-        $hit.append($title);
-        if (hit.snippet_html) { $hit.append($('<div class="hit__snippet">').html(hit.snippet_html)); }
-        if (hit.type === 'codes' && hit.owner) { $hit.append(el('div', 'hit__snippet', hit.owner.name)); }
+        $hit.append(hit.type === 'codes' ? el('span', 'plate plate--sm', hit.code) : el('span', 'type type--' + hit.type, TYPES[hit.type]), $body);
         return $('<li>').append($hit);
     }
 
@@ -351,7 +364,7 @@
             }
             var $list = el('ul', 'list');
             $.each(data.items, function (_, hit) { $list.append(renderHit(hit)); });
-            $result.append(el('p', 'owner', 'Найдено: ' + data.total), el('div', 'card').append($list));
+            $result.append(el('p', 'count', 'Найдено: ' + data.total), el('div', 'card').append($list));
         }, function (err) {
             $result.empty();
             showError($form, err.message);
@@ -372,6 +385,13 @@
     $('#search-form [name=type]').on('change', function () {
         var q = $.trim($('#search-form [name=q]').val());
         if (q) { showSearch(q); }
+    });
+
+    $('[data-examples="diagnose"]').on('click', '.example', function () {
+        var $form = $('#diagnose-form');
+        $form.find('[name=description]').val($(this).data('description'));
+        $form.find('[name=code]').val($(this).data('code'));
+        $form.trigger('submit');
     });
 
     // ---------- Навигация ----------

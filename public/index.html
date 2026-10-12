@@ -2,74 +2,109 @@
 <html lang="ru">
 <head>
     <meta charset="utf-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+    <meta name="theme-color" content="#15191e">
     <title>Неисправности лифтов</title>
     <meta name="description" content="База знаний по неисправностям лифтов: коды ошибок, поиск по симптомам, ИИ-диагностика с проверкой по базе.">
-    <link rel="stylesheet" href="/assets/app.css?v=2">
+    <link rel="stylesheet" href="/assets/app.css?v=8">
 </head>
 <body>
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+    <symbol id="i-lift" viewBox="0 0 24 24"><rect x="4" y="2.5" width="16" height="19" rx="2.5"/><path d="M12 2.5v19M8 10.5l-1.6 2.2h3.2zM16 13.5l-1.6-2.2h3.2z"/></symbol>
+    <symbol id="i-pulse" viewBox="0 0 24 24"><path d="M3 12h4l2.5-6 4 12 2.5-6H21"/></symbol>
+    <symbol id="i-hash" viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="14" rx="2.5"/><path d="M8 9v6M12 9v6M16 9v6"/></symbol>
+    <symbol id="i-search" viewBox="0 0 24 24"><circle cx="11" cy="11" r="6.5"/><path d="m20 20-4.2-4.2"/></symbol>
+    <symbol id="i-alert" viewBox="0 0 24 24"><path d="M12 3.5 2.5 20h19z"/><path d="M12 10v4.5M12 17.2v.3"/></symbol>
+</svg>
+
 <header class="top">
     <div class="wrap top__row">
         <a class="brand" href="#diagnose">
-            <svg class="brand__icon" viewBox="0 0 24 24" aria-hidden="true"><rect x="5" y="2" width="14" height="20" rx="2"/><path d="M12 2v20M9 9l-1.5 2h3zM15 15l-1.5-2h3z"/></svg>
-            <span>Неисправности лифтов</span>
+            <svg class="brand__icon"><use href="#i-lift"/></svg>
+            <span class="brand__name">Неисправности<span class="brand__tail"> лифтов</span></span>
         </a>
         <label class="model">
-            <span class="model__label">Модель</span>
-            <select id="model" aria-label="Модель лифта">
+            <span class="sr-only">Модель лифта</span>
+            <select id="model">
                 <option value="">Все модели</option>
             </select>
         </label>
     </div>
-    <nav class="wrap tabs" role="tablist">
-        <a class="tab" href="#diagnose" role="tab" data-tab="diagnose">Диагностика</a>
-        <a class="tab" href="#code" role="tab" data-tab="code">Код ошибки</a>
-        <a class="tab" href="#search" role="tab" data-tab="search">Поиск</a>
-    </nav>
 </header>
+
+<nav class="tabs" role="tablist" aria-label="Разделы">
+    <div class="wrap tabs__row">
+        <a class="tab" href="#diagnose" role="tab" data-tab="diagnose"><svg><use href="#i-pulse"/></svg><span>Диагностика</span></a>
+        <a class="tab" href="#code" role="tab" data-tab="code"><svg><use href="#i-hash"/></svg><span>Код ошибки</span></a>
+        <a class="tab" href="#search" role="tab" data-tab="search"><svg><use href="#i-search"/></svg><span>Поиск</span></a>
+    </div>
+</nav>
 
 <main class="wrap">
     <!-- Диагностика -->
-    <section class="panel" id="panel-diagnose" data-panel="diagnose" hidden>
+    <section class="panel" data-panel="diagnose" hidden>
+        <div class="intro">
+            <h1>Что случилось с лифтом?</h1>
+            <p>Опишите, что видите и слышите. Причины подбираются из базы, ИИ помогает их упорядочить.</p>
+        </div>
         <form class="card form" id="diagnose-form" novalidate>
             <label class="field">
-                <span class="field__label">Что происходит с лифтом</span>
+                <span class="field__label">Описание</span>
                 <textarea name="description" rows="4" maxlength="2000" required
-                          placeholder="Например: лифт стоит на этаже, двери открыты, на индикаторе 50, привод дверей гудит"></textarea>
+                          placeholder="Лифт стоит на этаже, двери открыты, привод дверей гудит"></textarea>
             </label>
             <div class="form__row">
                 <label class="field field--code">
-                    <span class="field__label">Код на индикаторе</span>
-                    <input name="code" maxlength="64" autocomplete="off" autocapitalize="characters" autocorrect="off" spellcheck="false" placeholder="45, E36, 44 C6…">
+                    <span class="field__label">Код на индикаторе <span class="field__hint">если есть</span></span>
+                    <input class="input--code" name="code" maxlength="64" autocomplete="off" autocapitalize="characters" autocorrect="off" spellcheck="false" placeholder="44 C6">
                 </label>
                 <button class="btn btn--primary" type="submit">Разобрать</button>
             </div>
             <p class="form__error" role="alert" hidden></p>
         </form>
-        <div id="diagnose-result" aria-live="polite"></div>
+        <div class="examples" data-examples="diagnose">
+            <span class="examples__label">Например</span>
+            <button type="button" class="example" data-description="Двери кабины не закрываются после выхода пассажиров, створки дёргаются" data-code="">Двери не закрываются</button>
+            <button type="button" class="example" data-description="Пассажиры застряли у этажа, на индикаторе 44 с подсказкой" data-code="44 C6">Застряли, код 44 C6</button>
+            <button type="button" class="example" data-description="При пуске лебёдка гудит, свет в кабине тускнеет, кабина стоит" data-code="">Лебёдка гудит, кабина стоит</button>
+        </div>
+        <div id="diagnose-result" class="result" aria-live="polite"></div>
     </section>
 
     <!-- Код ошибки -->
-    <section class="panel" id="panel-code" data-panel="code" hidden>
+    <section class="panel" data-panel="code" hidden>
+        <div class="intro">
+            <h1>Код ошибки</h1>
+            <p>Что значит код, почему возникает и как устранить. Выберите модель, если один код значит разное в разных устройствах.</p>
+        </div>
         <form class="card form form--inline" id="code-form" novalidate>
             <label class="field field--grow">
-                <span class="field__label">Код ошибки</span>
-                <input name="code" maxlength="64" autocomplete="off" autocapitalize="characters" autocorrect="off" spellcheck="false" placeholder="45, E36, 44 C6…" required>
+                <span class="field__label">Код с индикатора</span>
+                <input class="input--code input--big" name="code" maxlength="64" autocomplete="off" autocapitalize="characters" autocorrect="off" spellcheck="false" placeholder="45" required>
             </label>
             <button class="btn btn--primary" type="submit">Найти</button>
             <p class="form__error" role="alert" hidden></p>
         </form>
-        <div id="code-result" aria-live="polite"></div>
+        <div class="examples" data-examples="code">
+            <span class="examples__label">Например</span>
+            <a class="example" href="#code/45">45</a>
+            <a class="example" href="#code/44 C6">44 C6</a>
+            <a class="example" href="#code/E36">E36</a>
+            <a class="example" href="#code/50">50</a>
+        </div>
+        <div id="code-result" class="result" aria-live="polite"></div>
     </section>
 
     <!-- Поиск -->
-    <section class="panel" id="panel-search" data-panel="search" hidden>
+    <section class="panel" data-panel="search" hidden>
+        <div class="intro">
+            <h1>Поиск по базе</h1>
+            <p>Коды, симптомы, причины, ремонты и случаи из практики. Формы слов не важны.</p>
+        </div>
         <form class="card form" id="search-form" novalidate>
-            <div class="form__row">
-                <label class="field field--grow">
-                    <span class="field__label">Поиск по базе</span>
-                    <input name="q" type="search" maxlength="300" autocomplete="off" placeholder="двери не закрываются" required>
-                </label>
+            <div class="searchbox">
+                <svg class="searchbox__icon" aria-hidden="true"><use href="#i-search"/></svg>
+                <input name="q" type="search" maxlength="300" autocomplete="off" placeholder="двери не закрываются" required aria-label="Что искать">
                 <button class="btn btn--primary" type="submit">Искать</button>
             </div>
             <div class="chips" role="group" aria-label="Разделы">
@@ -81,18 +116,19 @@
             </div>
             <p class="form__error" role="alert" hidden></p>
         </form>
-        <div id="search-result" aria-live="polite"></div>
+        <div id="search-result" class="result" aria-live="polite"></div>
     </section>
-</main>
 
-<footer class="wrap foot">
-    <p id="disclaimer">Справочная система. Не заменяет документацию производителя и правила техники безопасности.
-        Работы на лифтовом оборудовании выполняет только обученный и допущенный персонал.</p>
-</footer>
+    <footer class="foot">
+        <svg aria-hidden="true"><use href="#i-alert"/></svg>
+        <p>Справочная система. Не заменяет документацию производителя и правила техники безопасности.
+            Работы на лифтовом оборудовании выполняет только обученный и допущенный персонал.</p>
+    </footer>
+</main>
 
 <script src="https://code.jquery.com/jquery-3.7.1.min.js"
         integrity="sha384-1H217gwSVyLSIfaLxHbE7dRb3v4mYCKbpQvzx0cegeju1MVsGrX5xXxAvs/HgeFs"
         crossorigin="anonymous"></script>
-<script src="/assets/app.js?v=2"></script>
+<script src="/assets/app.js?v=8"></script>
 </body>
 </html>
