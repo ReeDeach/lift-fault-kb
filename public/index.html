@@ -1,0 +1,98 @@
+<!doctype html>
+<html lang="ru">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Неисправности лифтов</title>
+    <meta name="description" content="База знаний по неисправностям лифтов: коды ошибок, поиск по симптомам, ИИ-диагностика с проверкой по базе.">
+    <link rel="stylesheet" href="/assets/app.css">
+</head>
+<body>
+<header class="top">
+    <div class="wrap top__row">
+        <a class="brand" href="#diagnose">
+            <svg class="brand__icon" viewBox="0 0 24 24" aria-hidden="true"><rect x="5" y="2" width="14" height="20" rx="2"/><path d="M12 2v20M9 9l-1.5 2h3zM15 15l-1.5-2h3z"/></svg>
+            <span>Неисправности лифтов</span>
+        </a>
+        <label class="model">
+            <span class="model__label">Модель</span>
+            <select id="model" aria-label="Модель лифта">
+                <option value="">Все модели</option>
+            </select>
+        </label>
+    </div>
+    <nav class="wrap tabs" role="tablist">
+        <a class="tab" href="#diagnose" role="tab" data-tab="diagnose">Диагностика</a>
+        <a class="tab" href="#code" role="tab" data-tab="code">Код ошибки</a>
+        <a class="tab" href="#search" role="tab" data-tab="search">Поиск</a>
+    </nav>
+</header>
+
+<main class="wrap">
+    <!-- Диагностика -->
+    <section class="panel" id="panel-diagnose" data-panel="diagnose" hidden>
+        <form class="card form" id="diagnose-form" novalidate>
+            <label class="field">
+                <span class="field__label">Что происходит с лифтом</span>
+                <textarea name="description" rows="4" maxlength="2000" required
+                          placeholder="Например: лифт стоит на этаже, двери открыты, на индикаторе 50, привод дверей гудит"></textarea>
+            </label>
+            <div class="form__row">
+                <label class="field field--code">
+                    <span class="field__label">Код на индикаторе</span>
+                    <input name="code" maxlength="32" autocomplete="off" placeholder="45, E36, A2…">
+                </label>
+                <button class="btn btn--primary" type="submit">Разобрать</button>
+            </div>
+            <p class="form__error" role="alert" hidden></p>
+        </form>
+        <div id="diagnose-result" aria-live="polite"></div>
+    </section>
+
+    <!-- Код ошибки -->
+    <section class="panel" id="panel-code" data-panel="code" hidden>
+        <form class="card form form--inline" id="code-form" novalidate>
+            <label class="field field--grow">
+                <span class="field__label">Код ошибки</span>
+                <input name="code" maxlength="32" autocomplete="off" placeholder="45, E36, C6…" required>
+            </label>
+            <button class="btn btn--primary" type="submit">Найти</button>
+            <p class="form__error" role="alert" hidden></p>
+        </form>
+        <div id="code-result" aria-live="polite"></div>
+    </section>
+
+    <!-- Поиск -->
+    <section class="panel" id="panel-search" data-panel="search" hidden>
+        <form class="card form" id="search-form" novalidate>
+            <div class="form__row">
+                <label class="field field--grow">
+                    <span class="field__label">Поиск по базе</span>
+                    <input name="q" type="search" maxlength="300" autocomplete="off" placeholder="двери не закрываются" required>
+                </label>
+                <button class="btn btn--primary" type="submit">Искать</button>
+            </div>
+            <div class="chips" role="group" aria-label="Разделы">
+                <label class="chip"><input type="checkbox" name="type" value="codes" checked><span>Коды</span></label>
+                <label class="chip"><input type="checkbox" name="type" value="symptoms" checked><span>Симптомы</span></label>
+                <label class="chip"><input type="checkbox" name="type" value="causes" checked><span>Причины</span></label>
+                <label class="chip"><input type="checkbox" name="type" value="fixes" checked><span>Ремонты</span></label>
+                <label class="chip"><input type="checkbox" name="type" value="cases" checked><span>Случаи</span></label>
+            </div>
+            <p class="form__error" role="alert" hidden></p>
+        </form>
+        <div id="search-result" aria-live="polite"></div>
+    </section>
+</main>
+
+<footer class="wrap foot">
+    <p id="disclaimer">Справочная система. Не заменяет документацию производителя и правила техники безопасности.
+        Работы на лифтовом оборудовании выполняет только обученный и допущенный персонал.</p>
+</footer>
+
+<script src="https://code.jquery.com/jquery-3.7.1.min.js"
+        integrity="sha384-1H217gwSVyLSIfaLxHbE7dRb3v4mYCKbpQvzx0cegeju1MVsGrX5xXxAvs/HgeFs"
+        crossorigin="anonymous"></script>
+<script src="/assets/app.js"></script>
+</body>
+</html>
