@@ -54,13 +54,19 @@ final class Migrator
     }
 
     /**
+     * @param string|null $until применить только миграции, чьё имя меньше этого
+     *        (нужно для замеров «до» миграции с индексами)
      * @return list<string> имена применённых миграций
      */
-    public function migrate(): array
+    public function migrate(?string $until = null): array
     {
         $done = [];
 
         foreach ($this->pending() as $file) {
+            if ($until !== null && strcmp($file, $until) >= 0) {
+                break;
+            }
+
             try {
                 $this->runFile($this->migrationsDir . '/' . $file);
             } catch (Throwable $e) {

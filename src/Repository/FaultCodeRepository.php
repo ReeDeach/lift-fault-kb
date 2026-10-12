@@ -36,9 +36,19 @@ final class FaultCodeRepository
             if ($modelIds === []) {
                 return ['items' => [], 'total' => 0];
             }
+            // Устройства модели выбираются заранее и подставляются списком. С подзапросом внутри OR
+            // MySQL читал всю таблицу кодов, а со списками объединяет два индекса
+            // (model_id, code) и (controller_id, code). Замеры — в docs/performance.md.
             $in = implode(',', array_map('intval', $modelIds));
-            $where[] = "(fc.model_id IN ($in) OR fc.controller_id IN "
-                . "(SELECT mc.controller_id FROM model_controllers mc WHERE mc.model_id IN ($in)))";
+            $controllers = $this->pdo->query(
+                "SELECT DISTINCT controller_id FROM model_controllers WHERE model_id IN ($in)"
+            )->fetchAll(PDO::FETCH_COLUMN);
+
+            $owner = "fc.model_id IN ($in)";
+            if ($controllers !== []) {
+                $owner .= ' OR fc.controller_id IN (' . implode(',', array_map('intval', $controllers)) . ')';
+            }
+            $where[] = "($owner)";
         }
 
         if ($code !== null) {
