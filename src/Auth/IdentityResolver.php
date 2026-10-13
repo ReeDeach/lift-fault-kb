@@ -18,10 +18,16 @@ use PDO;
  *
  * Права мастера — у аккаунтов из MASTER_LOGINS. Механиком может войти любой аккаунт сети:
  * при первом входе он выбирает себя в списке механиков, и аккаунт привязывается.
+ *
+ * Демо-режим (DEMO_MODE=1, только у демо-копии с вымышленными данными): входа нет, каждый
+ * браузер присылает свой случайный X-Demo-User, права мастера у всех, механик выбирается
+ * заголовком X-Demo-Mechanic без привязки. В рабочей копии эти заголовки игнорируются.
  */
 final class IdentityResolver
 {
     public const HEADER = 'tailscale-user-login';
+    public const DEMO_USER = 'x-demo-user';
+    public const DEMO_MECHANIC = 'x-demo-mechanic';
 
     /**
      * @param list<string> $masterLogins
@@ -31,7 +37,13 @@ final class IdentityResolver
         private readonly PDO $pdo,
         private readonly array $masterLogins,
         private readonly ?string $devLogin = null,
+        private readonly bool $demo = false,
     ) {
+    }
+
+    public function isDemo(): bool
+    {
+        return $this->demo;
     }
 
     public static function fromEnv(PDO $pdo): self
@@ -42,11 +54,15 @@ final class IdentityResolver
         )));
         $dev = Env::get('APP_ENV') === 'local' ? Env::get('AUTH_DEV_LOGIN') : '';
 
-        return new self($pdo, $masters, $dev !== '' ? $dev : null);
+        return new self($pdo, $masters, $dev !== '' ? $dev : null, Env::get('DEMO_MODE') === '1');
     }
 
     public function resolve(Request $request): ?Identity
     {
+        if ($this->demo) {
+            return $this->resolveDemo($request);
+        }
+
         $login = strtolower(trim((string) ($request->header(self::HEADER) ?? $this->devLogin ?? '')));
         if ($login === '' || strlen($login) > 190) {
             return null;
@@ -61,6 +77,25 @@ final class IdentityResolver
             in_array($login, $this->masterLogins, true),
             $row === false ? null : ['id' => (int) $row['id'], 'name' => $row['name'], 'section' => $row['section']],
         );
+    }
+
+    private function resolveDemo(Request $request): ?Identity
+    {
+        $session = preg_replace('/[^a-z0-9-]/', '', strtolower((string) $request->header(self::DEMO_USER)));
+        if ($session === '' || $session === null) {
+            return null;
+        }
+
+        $mechanic = null;
+        $id = (string) $request->header(self::DEMO_MECHANIC);
+        if (ctype_digit($id)) {
+            $stmt = $this->pdo->prepare('SELECT id, name, section FROM mechanics WHERE id = ?');
+            $stmt->execute([(int) $id]);
+            $row = $stmt->fetch(PDO::FETCH_ASSOC);
+            $mechanic = $row === false ? null : ['id' => (int) $row['id'], 'name' => $row['name'], 'section' => $row['section']];
+        }
+
+        return new Identity('demo:' . substr($session, 0, 40), true, $mechanic);
     }
 
     public function require(Request $request): Identity

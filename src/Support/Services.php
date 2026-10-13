@@ -31,6 +31,7 @@ final class Services
      * @param (Closure(self): ?SearchIndex)|null $searchIndexFactory
      * @param (Closure(): ?LanguageModel)|null $languageModelFactory
      * @param (Closure(PDO): IdentityResolver)|null $identityFactory
+     * @param (Closure(PDO): RateLimiter)|null $rateLimiterFactory
      */
     public function __construct(
         private readonly ?Closure $pdoFactory = null,
@@ -38,7 +39,16 @@ final class Services
         private readonly ?Closure $searchIndexFactory = null,
         private readonly ?Closure $languageModelFactory = null,
         private readonly ?Closure $identityFactory = null,
+        private readonly ?Closure $rateLimiterFactory = null,
     ) {
+    }
+
+    /**
+     * Лимит запросов к ИИ. В тестах подменяется, чтобы счётчики не мешали прогонам.
+     */
+    public function rateLimiter(): RateLimiter
+    {
+        return $this->rateLimiterFactory !== null ? ($this->rateLimiterFactory)($this->pdo()) : RateLimiter::fromEnv($this->pdo());
     }
 
     /**

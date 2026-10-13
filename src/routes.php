@@ -55,15 +55,19 @@ return static function (Router $router, ?Services $services = null): void {
     ))->search($r));
 
     // Диагностика работает и без Manticore (только по коду), и без ИИ (список причин из базы)
-    $router->post('/api/diagnose', static fn ($r) => (new DiagnoseController(
-        new CatalogRepository($services->pdo()),
-        new CandidateFinder(
-            $services->pdo(),
-            new FaultCodeRepository($services->pdo()),
-            ManticoreIndex::isConfigured() ? $search : null,
-        ),
-        new Diagnoser($services->languageModel()),
-    ))->diagnose($r));
+    $router->post('/api/diagnose', static function ($r) use ($services, $search) {
+        $services->rateLimiter()->hit($r, 'diagnose');
+
+        return (new DiagnoseController(
+            new CatalogRepository($services->pdo()),
+            new CandidateFinder(
+                $services->pdo(),
+                new FaultCodeRepository($services->pdo()),
+                ManticoreIndex::isConfigured() ? $search : null,
+            ),
+            new Diagnoser($services->languageModel()),
+        ))->diagnose($r);
+    });
 
     // Личный журнал механика: вход по аккаунту Tailscale
     $journal = static fn (): JournalController => new JournalController(
@@ -75,7 +79,11 @@ return static function (Router $router, ?Services $services = null): void {
     $router->post('/api/me/link', static fn ($r) => $journal()->link($r));
     $router->get('/api/mechanics', static fn ($r) => $journal()->mechanics($r));
     $router->get('/api/lifts', static fn ($r) => $journal()->lifts($r));
-    $router->post('/api/journal/draft', static fn ($r) => $journal()->draft($r));
+    $router->post('/api/journal/draft', static function ($r) use ($services, $journal) {
+        $services->rateLimiter()->hit($r, 'draft');
+
+        return $journal()->draft($r);
+    });
     $router->get('/api/journal', static fn ($r) => $journal()->index($r));
     $router->post('/api/journal', static fn ($r) => $journal()->create($r));
     $router->delete('/api/journal/{id}', static fn ($r) => $journal()->delete($r));

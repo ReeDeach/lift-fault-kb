@@ -1103,6 +1103,39 @@
         unresolved: { text: 'не устранено', cls: 'lft-badge--alarm' }
     };
     var session = { me: null, role: null, error: null };
+    var DEMO_USER = 'lft:demo-user';
+    var DEMO_MECHANIC = 'lft:demo-mechanic';
+
+    function demoValue(key, value) {
+        try {
+            if (value === undefined) {
+                return localStorage.getItem(key);
+            }
+            if (value === null) {
+                localStorage.removeItem(key);
+            } else {
+                localStorage.setItem(key, value);
+            }
+        } catch (e) { /* без хранилища демо-сессия живёт до перезагрузки */ }
+        return null;
+    }
+
+    // Демо-копия без входа: браузер представляется случайным идентификатором.
+    // Рабочая копия эти заголовки игнорирует, пользователя там определяет Tailscale.
+    var demoUser = demoValue(DEMO_USER);
+    if (!demoUser) {
+        demoUser = 'd' + Date.now().toString(36) + Math.random().toString(36).slice(2, 10);
+        demoValue(DEMO_USER, demoUser);
+    }
+    $.ajaxSetup({
+        beforeSend: function (xhr) {
+            xhr.setRequestHeader('X-Demo-User', demoUser);
+            var mechanic = demoValue(DEMO_MECHANIC);
+            if (mechanic) {
+                xhr.setRequestHeader('X-Demo-Mechanic', mechanic);
+            }
+        }
+    });
     var liftsRequest = null;
 
     function storedRole(value) {
@@ -1127,6 +1160,7 @@
                 role = null;
             }
             session.role = role;
+            $('#app-demo').prop('hidden', !me.demo);
             drawUser();
             render();
         }, function (error) {
@@ -1177,11 +1211,15 @@
     function pickMechanicHtml(mechanics) {
         var html = '<div class="lft-window app-login-pick"><div class="lft-window__bar"><span class="lft-label">Выберите себя</span>'
             + '<span class="lft-window__x" aria-hidden="true">×</span></div><div class="lft-window__body">'
-            + '<p class="app-text app-muted">Один раз: аккаунт привяжется к механику, и в журнале будут ваши лифты.</p>';
+            + '<p class="app-text app-muted">' + (session.me && session.me.demo
+                ? 'Демо: выберите любого вымышленного механика, его можно сменить в любой момент.'
+                : 'Один раз: аккаунт привяжется к механику, и в журнале будут ваши лифты.') + '</p>';
+        var demo = session.me && session.me.demo;
         $.each(mechanics || [], function (_, m) {
-            html += '<button type="button" class="app-pick-row" data-mechanic="' + m.id + '"' + (m.linked ? ' disabled' : '') + '>'
+            var taken = m.linked && !demo;
+            html += '<button type="button" class="app-pick-row" data-mechanic="' + m.id + '"' + (taken ? ' disabled' : '') + '>'
                 + '<span class="app-pick-main">' + esc(m.name) + '</span>'
-                + '<span class="lft-label">' + (m.linked ? 'уже привязан' : m.lifts + ' ' + plural(m.lifts, 'лифт', 'лифта', 'лифтов')) + '</span></button>';
+                + '<span class="lft-label">' + (taken ? 'уже привязан' : m.lifts + ' ' + plural(m.lifts, 'лифт', 'лифта', 'лифтов')) + '</span></button>';
         });
         return html + '</div></div>';
     }
@@ -1524,7 +1562,7 @@
                     return;
                 }
                 session.role = 'master';
-            } else if (session.me.mechanic) {
+            } else if (session.me.mechanic && !session.me.demo) {
                 session.role = 'mechanic';
             } else {
                 $('#login-more').html(pickMechanicHtml(session.me.mechanics));
@@ -1535,6 +1573,18 @@
             render();
         })
         .on('click', '[data-mechanic]', function () {
+            if (session.me.demo) {
+                demoValue(DEMO_MECHANIC, String($(this).data('mechanic')));
+                liftsRequest = null;
+                api('/api/me').then(function (me) {
+                    session.me = me;
+                    session.role = 'mechanic';
+                    storedRole('mechanic');
+                    drawUser();
+                    render();
+                });
+                return;
+            }
             apiPost('/api/me/link', { mechanic_id: Number($(this).data('mechanic')) }).then(function (me) {
                 session.me = me;
                 session.role = 'mechanic';

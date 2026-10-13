@@ -40,17 +40,23 @@ final class JournalController
     {
         $who = $this->auth->require($request);
 
+        $demo = $this->auth->isDemo();
+
         return Response::json([
             'login' => $who->login,
             'is_master' => $who->isMaster,
             'mechanic' => $who->mechanic,
-            'mechanics' => $who->mechanic === null ? $this->journal->mechanics() : null,
+            'mechanics' => $who->mechanic === null || $demo ? $this->journal->mechanics() : null,
+            'demo' => $demo,
         ]);
     }
 
     public function link(Request $request): Response
     {
         $who = $this->auth->require($request);
+        if ($this->auth->isDemo()) {
+            throw new HttpException(400, 'В демо механик выбирается без привязки аккаунта');
+        }
         $id = $request->body['mechanic_id'] ?? null;
         if (!is_int($id) || $id <= 0) {
             throw new HttpException(400, 'Ошибка в данных', ['mechanic_id' => 'Выберите механика']);

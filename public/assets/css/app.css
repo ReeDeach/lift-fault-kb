@@ -417,6 +417,10 @@ body.app-dd-lock{overflow:hidden}
 @keyframes app-sheet{from{transform:translateY(24px);opacity:0}}
 @media (prefers-reduced-motion:reduce){.app-dd--sheet{animation:none}}
 
+/* Плашка демо-версии */
+.app-demo{margin:0;padding:8px 40px;background:var(--signal);color:var(--on-accent);text-align:center}
+.app-demo[hidden]{display:none}
+
 /* Вход */
 .app-login{flex:1;display:flex;flex-direction:column;align-items:center;gap:16px}
 .app-login-mark{width:64px;height:64px;image-rendering:pixelated}
@@ -534,6 +538,7 @@ a.app-type{display:inline-flex;align-items:center;text-decoration:none}
   .app-ai-send .lft-icon{width:20px;height:20px}
   .app-ai-form .app-field-error{position:static}
   .app-login-actions .lft-btn{min-width:0;flex:1 1 100%}
+  .app-demo{padding:8px 16px}
   .app-user span{max-width:110px}
   /* После входа в шапке место под имя: «база онлайн» на телефоне не показываем */
   .app-user:not([hidden]) ~ .app-status{display:none}

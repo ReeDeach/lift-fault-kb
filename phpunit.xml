@@ -10,6 +10,11 @@
             <directory>tests</directory>
         </testsuite>
     </testsuites>
+    <php>
+        <!-- Лимиты ИИ в тестах не должны срабатывать: счётчики живут в базе между прогонами -->
+        <env name="AI_LIMIT_USER_HOUR" value="1000000" force="true"/>
+        <env name="AI_LIMIT_DAY" value="1000000" force="true"/>
+    </php>
     <source>
         <include>
             <directory>src</directory>

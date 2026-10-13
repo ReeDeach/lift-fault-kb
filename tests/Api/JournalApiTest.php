@@ -234,6 +234,36 @@ final class JournalApiTest extends TestCase
         $this->assertSame([1, 2], array_column($data['items'][0]['lifts'], 'lift_no'));
     }
 
+    public function testDemoModeNeedsNoAccountAndGivesMasterRights(): void
+    {
+        $router = new Router();
+        $pdo = $this->pdo;
+        (require __DIR__ . '/../../src/routes.php')($router, new Services(
+            static fn (): PDO => $pdo,
+            identityFactory: static fn (PDO $p): IdentityResolver => new IdentityResolver($p, [], null, true),
+        ));
+        $call = static function (array $headers, string $method = 'GET', string $path = '/api/me', array $body = []) use ($router): array {
+            $r = $router->dispatch(new Request($method, $path, body: $body, headers: $headers));
+
+            return [$r->status, json_decode($r->body, true)];
+        };
+
+        [$anon] = $call([]);
+        [$status, $me] = $call(['x-demo-user' => 'abc-123']);
+        [, $asMechanic] = $call(['x-demo-user' => 'abc-123', 'x-demo-mechanic' => (string) $this->mechanic['a']]);
+        [$link] = $call(['x-demo-user' => 'abc-123'], 'POST', '/api/me/link', ['mechanic_id' => $this->mechanic['a']]);
+        // Рабочая копия демо-заголовки не принимает
+        [$prod] = $this->call(null, 'GET', '/api/me');
+
+        $this->assertSame(401, $anon);
+        $this->assertSame(200, $status);
+        $this->assertTrue($me['demo']);
+        $this->assertTrue($me['is_master']);
+        $this->assertSame($this->mechanic['a'], $asMechanic['mechanic']['id']);
+        $this->assertSame(400, $link, 'В демо аккаунт к механику не привязывается');
+        $this->assertSame(401, $prod);
+    }
+
     public function testDraftKeepsOnlyCodesFromChat(): void
     {
         $this->linkBoth();
