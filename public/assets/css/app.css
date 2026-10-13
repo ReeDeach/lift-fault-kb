@@ -259,6 +259,22 @@ body{background:var(--ground);color:var(--ink);font-family:var(--font-sans);marg
 .app-list .fp-list li b.app-safety{color:var(--signal)}
 .app-list .fp-list li.on{box-shadow:inset 2px 0 0 var(--accent)}
 .app-more{padding:16px 24px}
+
+/* Модели в списке кодов: раскрываются по нажатию */
+.app-acc{border-bottom:1px solid var(--line-faint)}
+.app-acc-head{display:flex;align-items:center;gap:12px;width:100%;padding:14px 24px;background:transparent;border:0;color:var(--ink);text-align:left;cursor:pointer;transition:background-color .15s}
+.app-acc-head:hover,.app-acc-head:focus-visible{background:var(--surface);outline:0}
+.app-acc-head::after{content:"";flex:none;width:7px;height:7px;margin-left:4px;border-right:2px solid var(--accent);border-bottom:2px solid var(--accent);transform:translateY(-2px) rotate(45deg);transition:transform .2s}
+.app-acc.is-open .app-acc-head{background:var(--surface-raised);box-shadow:inset 2px 0 0 var(--accent)}
+.app-acc.is-open .app-acc-head::after{transform:translateY(2px) rotate(-135deg)}
+.app-acc-title{flex:1;min-width:0;display:grid;gap:2px}
+.app-acc-name{font:700 14px/18px var(--font-display);text-transform:uppercase;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.app-acc-count{flex:none;font:500 11px/1 var(--font-mono);letter-spacing:.06em;text-transform:uppercase;color:var(--muted)}
+.app-acc.is-open .app-acc-count{color:var(--accent)}
+.app-acc-body{border-top:1px solid var(--line-faint)}
+.app-acc-body li.app-group{padding-left:32px!important}
+.app-acc-body a{padding-left:32px!important}
+@media (prefers-reduced-motion:no-preference){.app-acc.is-open .app-acc-body{animation:app-in .2s ease-out both}}
 .app-more .lft-btn{width:100%}
 
 /* Карточка кода */

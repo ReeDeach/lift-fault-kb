@@ -321,26 +321,35 @@
         }
     }
 
+    // Строки кодов с подзаголовками устройств (УЛ, ПЧ)
+    function codeRowsHtml(items, model, activeId) {
+        var html = '';
+        var group = null;
+        $.each(items, function (_, item) {
+            var on = String(item.id) === String(activeId || '');
+            var owner = ownerLabel(item.owner);
+            if (owner !== group) {
+                group = owner;
+                html += '<li class="app-group lft-label">' + esc(owner) + '</li>';
+            }
+            html += '<li' + (on ? ' class="on"' : '') + '><a href="' + hashFor('codes', { model: model, id: item.id }) + '">'
+                + '<b class="' + (item.is_safety_related ? 'app-safety' : '') + '">' + esc(item.code) + '</b>'
+                + '<span>' + esc(item.title) + '</span></a></li>';
+        });
+        return html;
+    }
+
     function renderCodeList(model, activeId, token) {
-        var key = model || '*';
+        if (!model) {
+            renderModelGroups(activeId, token);
+            return;
+        }
+        var key = model;
         var $list = $('#code-list');
 
         function draw() {
             var html = '<span class="lft-label app-list-head">Коды · ' + listCache.items.length + ' из ' + listCache.total + '</span>'
-                + '<ul class="fp-list">';
-            var group = null;
-            $.each(listCache.items, function (_, item) {
-                var on = String(item.id) === String(activeId || '');
-                var owner = ownerLabel(item.owner);
-                if (owner !== group) {
-                    group = owner;
-                    html += '<li class="app-group lft-label">' + esc(owner) + '</li>';
-                }
-                html += '<li' + (on ? ' class="on"' : '') + '><a href="' + hashFor('codes', { model: model, id: item.id }) + '">'
-                    + '<b class="' + (item.is_safety_related ? 'app-safety' : '') + '">' + esc(item.code) + '</b>'
-                    + '<span>' + esc(item.title) + '</span></a></li>';
-            });
-            html += '</ul>';
+                + '<ul class="fp-list">' + codeRowsHtml(listCache.items, model, activeId) + '</ul>';
             if (listCache.items.length < listCache.total) {
                 html += '<div class="app-more"><button type="button" class="lft-btn lft-btn--ghost" data-action="more">Показать ещё</button></div>';
             }
@@ -355,7 +364,7 @@
             return;
         }
 
-        api('/api/codes', { model: model || null, limit: PAGE_LIMIT, offset: 0 }).then(function (data) {
+        api('/api/codes', { model: model, limit: PAGE_LIMIT, offset: 0 }).then(function (data) {
             listCache = { key: key, items: data.items, total: data.total };
             if (token === renderToken) {
                 draw();
@@ -363,6 +372,173 @@
         }, function (error) {
             if (token === renderToken) {
                 $list.html('<div class="app-pad">' + errorWindow(error, 'Список кодов') + '</div>');
+            }
+        });
+    }
+
+    // ---------- Список кодов по моделям: модель раскрывается по нажатию ----------
+    // Коды принадлежат устройствам (УЛ, ПЧ), а устройства стоят на моделях. Без выбранной
+    // модели слева — модели лифтов, внутри — их коды по устройствам. Устройства, не привязанные
+    // ни к одной модели (другие исполнения УЛ), — отдельными группами по производителю.
+
+    var groupCache = {};
+    var openGroups = {};
+
+    function renderModelGroups(activeId, token) {
+        var $list = $('#code-list');
+        loadModels().then(function (models) {
+            if (token !== renderToken) {
+                return;
+            }
+            var html = '<span class="lft-label app-list-head">Модели · ' + models.length + '</span><div class="app-acc-list">';
+            $.each(models, function (_, m) {
+                html += accHtml('m' + m.id, m.manufacturer.name, m.name, m.codes_count);
+            });
+            $list.html(html + '</div>');
+            otherGroups().then(function (groups) {
+                if (token !== renderToken) {
+                    return;
+                }
+                $.each(groups, function (_, g) {
+                    $list.find('.app-acc-list').append(accHtml(g.key, g.vendor, g.name, g.items.length));
+                });
+                $.each(openGroups, function (key, open) {
+                    if (open && key.charAt(0) === 'o') {
+                        openGroup(key, activeId, false);
+                    }
+                });
+            });
+            $.each(openGroups, function (key, open) {
+                if (open && key.charAt(0) === 'm') {
+                    openGroup(key, activeId, false);
+                }
+            });
+        }, function (error) {
+            $list.html('<div class="app-pad">' + errorWindow(error, 'Модели') + '</div>');
+        });
+    }
+
+    function accHtml(key, maker, name, count) {
+        return '<div class="app-acc" data-acc="' + key + '">'
+            + '<button type="button" class="app-acc-head" aria-expanded="false" aria-controls="acc-' + key + '">'
+            + '<span class="app-acc-title"><span class="lft-label">' + esc(maker) + '</span><span class="app-acc-name">' + esc(name) + '</span></span>'
+            + (count === null ? '' : '<span class="app-acc-count">' + count + ' ' + plural(count, 'код', 'кода', 'кодов') + '</span>')
+            + '</button><ul class="fp-list app-acc-body" id="acc-' + key + '" hidden></ul></div>';
+    }
+
+    // Устройства без модели, сгруппированные по производителю: «Могилёвлифтмаш · УЛ, другие исполнения»
+    var otherCache = null;
+
+    function otherGroups() {
+        if (otherCache) {
+            return otherCache;
+        }
+        otherCache = $.when(loadModels(), loadAllCodes({})).then(function (models, codes) {
+            var used = {};
+            $.each(models, function (_, m) {
+                $.each(m.controllers, function (_, c) { used[c.id] = true; });
+            });
+            var groups = [];
+            var byVendor = {};
+            $.each(codes, function (_, item) {
+                if (item.owner.type !== 'controller' || used[item.owner.id]) {
+                    return;
+                }
+                var vendor = item.owner.vendor || 'Без производителя';
+                if (!byVendor[vendor]) {
+                    byVendor[vendor] = { key: 'o' + item.owner.id, vendor: vendor, items: [], prefixes: {} };
+                    groups.push(byVendor[vendor]);
+                }
+                byVendor[vendor].items.push(item);
+                byVendor[vendor].prefixes[item.owner.name.split(' ')[0]] = true;
+            });
+            $.each(groups, function (_, g) {
+                var prefixes = Object.keys(g.prefixes);
+                g.name = prefixes.length === 1 ? prefixes[0] + ', другие исполнения' : 'Другие устройства';
+            });
+            return groups;
+        });
+        otherCache.fail(function () {
+            otherCache = null;
+        });
+        return otherCache;
+    }
+
+    // Все коды группы (по страницам), один раз за сессию
+    function groupCodes(key) {
+        if (groupCache[key]) {
+            return groupCache[key];
+        }
+        var request;
+        if (key.charAt(0) === 'o') {
+            request = otherGroups().then(function (groups) {
+                var found = $.grep(groups, function (g) { return g.key === key; });
+                return found.length ? found[0].items : [];
+            });
+        } else {
+            request = loadAllCodes({ model: key.slice(1) });
+        }
+        groupCache[key] = request;
+        request.fail(function () {
+            delete groupCache[key];
+        });
+        return request;
+    }
+
+    function openGroup(key, activeId, scroll) {
+        var $acc = $('.app-acc[data-acc="' + key + '"]');
+        if (!$acc.length) {
+            return;
+        }
+        var $body = $acc.find('.app-acc-body');
+        openGroups[key] = true;
+        $acc.addClass('is-open').find('.app-acc-head').attr('aria-expanded', 'true');
+        $body.prop('hidden', false);
+        if (!$body.children().length) {
+            $body.html('<li class="app-group lft-label">Загрузка…</li>');
+        }
+        groupCodes(key).then(function (items) {
+            // Ссылки без фильтра модели: иначе список переключится в плоский вид одной модели
+            $body.html(items.length ? codeRowsHtml(items, null, activeId)
+                : '<li class="app-group lft-label">Кодов пока нет</li>');
+            if (scroll) {
+                var $on = $body.find('li.on');
+                ($on.length ? $on : $acc)[0].scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+            }
+        });
+    }
+
+    function closeGroup(key) {
+        var $acc = $('.app-acc[data-acc="' + key + '"]');
+        openGroups[key] = false;
+        $acc.removeClass('is-open').find('.app-acc-head').attr('aria-expanded', 'false');
+        $acc.find('.app-acc-body').prop('hidden', true);
+    }
+
+    // Открытый код — раскрыть его модель в списке слева, если она ещё свёрнута
+    function revealInList(item) {
+        if (currentRoute().params.model) {
+            return;
+        }
+        $.when(loadModels(), otherGroups()).then(function (models, groups) {
+            var key = null;
+            $.each(groups, function (_, g) {
+                if ($.grep(g.items, function (i) { return i.owner.id === item.owner.id; }).length) {
+                    key = g.key;
+                }
+            });
+            $.each(models, function (_, m) {
+                var owns = item.owner.type === 'model'
+                    ? m.id === item.owner.id
+                    : $.grep(m.controllers, function (c) { return c.id === item.owner.id; }).length > 0;
+                if (owns) {
+                    key = 'm' + m.id;
+                    return false;
+                }
+                return true;
+            });
+            if (key && !openGroups[key]) {
+                openGroup(key, item.id, true);
             }
         });
     }
@@ -449,6 +625,7 @@
         api('/api/codes/' + encodeURIComponent(id)).then(function (data) {
             if (token === renderToken) {
                 drawDetail(data.item);
+                revealInList(data.item);
             }
         }, function (error) {
             if (token !== renderToken) {
@@ -1664,6 +1841,14 @@
         .on('input', '#journal-filter', applyJournalFilter)
         .on('change', '#journal-model', function () {
             go('base', { model: $(this).val() });
+        })
+        .on('click', '.app-acc-head', function () {
+            var key = $(this).closest('.app-acc').data('acc');
+            if ($(this).attr('aria-expanded') === 'true') {
+                closeGroup(key);
+            } else {
+                openGroup(key, currentRoute().params.id, true);
+            }
         })
         .on('click', '[data-action="more"]', function () {
             $(this).prop('disabled', true).text('Загрузка…');
