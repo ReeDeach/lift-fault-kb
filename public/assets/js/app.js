@@ -161,13 +161,28 @@
         return page(0);
     }
 
+    // Модели сгруппированы по производителю, как в списке кодов
     function modelOptions(models, selected) {
         var html = '<option value="">Все модели</option>';
+        var makers = [];
+        var byMaker = {};
         $.each(models, function (_, m) {
-            var value = String(m.id);
-            html += '<option value="' + esc(value) + '"' + (value === String(selected || '') ? ' selected' : '')
-                + ' data-maker="' + esc(m.manufacturer.name) + '" data-name="' + esc(m.name) + '" data-count="' + esc(m.codes_count) + '">'
-                + esc(m.manufacturer.name + ' · ' + m.name) + ' (' + m.codes_count + ')</option>';
+            var maker = m.manufacturer.name;
+            if (!byMaker[maker]) {
+                byMaker[maker] = [];
+                makers.push(maker);
+            }
+            byMaker[maker].push(m);
+        });
+        $.each(makers, function (_, maker) {
+            html += '<optgroup label="' + esc(maker) + '">';
+            $.each(byMaker[maker], function (_, m) {
+                var value = String(m.id);
+                html += '<option value="' + esc(value) + '"' + (value === String(selected || '') ? ' selected' : '')
+                    + ' data-maker="' + esc(maker) + '" data-name="' + esc(m.name) + '" data-count="' + esc(m.codes_count) + '">'
+                    + esc(maker + ' · ' + m.name) + ' (' + m.codes_count + ')</option>';
+            });
+            html += '</optgroup>';
         });
         return html;
     }
@@ -256,17 +271,28 @@
             html += '<div class="lft-window__bar"><span class="lft-label">' + esc(title) + '</span>'
                 + '<button type="button" class="lft-window__x app-dd-close" aria-label="Закрыть">×</button></div>';
         }
-        $select.find('option').each(function () {
-            var $o = $(this);
-            var on = $o.is(':selected');
-            html += '<button type="button" class="app-dd-opt" role="option" aria-selected="' + on + '" data-value="' + esc($o.val()) + '">';
+        function optionHtml($o, grouped) {
+            var out = '<button type="button" class="app-dd-opt" role="option" aria-selected="' + $o.is(':selected') + '" data-value="' + esc($o.val()) + '">';
             if ($o.data('name')) {
-                html += '<span class="lft-label">' + esc($o.data('maker')) + '</span><span class="app-dd-name">' + esc($o.data('name')) + '</span>'
+                // В группе производитель уже в заголовке
+                out += (grouped ? '' : '<span class="lft-label">' + esc($o.data('maker')) + '</span>')
+                    + '<span class="app-dd-name">' + esc($o.data('name')) + '</span>'
                     + '<span class="app-dd-count">' + esc($o.data('count')) + ' ' + plural(Number($o.data('count')), 'код', 'кода', 'кодов') + '</span>';
             } else {
-                html += '<span class="app-dd-name">' + esc($o.text()) + '</span>';
+                out += '<span class="app-dd-name">' + esc($o.text()) + '</span>';
             }
-            html += '</button>';
+            return out + '</button>';
+        }
+        $select.children().each(function () {
+            var $c = $(this);
+            if ($c.is('optgroup')) {
+                html += '<div class="app-dd-group lft-label" role="presentation">' + esc($c.attr('label')) + '</div>';
+                $c.children('option').each(function () {
+                    html += optionHtml($(this), true);
+                });
+            } else {
+                html += optionHtml($c, false);
+            }
         });
         var $dd = $(html + '</div>').data('button', $btn);
 
@@ -292,7 +318,7 @@
             + 'placeholder="Код с пульта: 45, 44 C6, E36" aria-label="Код неисправности" maxlength="64" autocapitalize="characters" autocorrect="off" spellcheck="false"></label>'
             + '<label class="fp-chip app-select">' + icon('factory')
             + '<select name="model" id="model-select" aria-label="Модель лифта"><option value="">Загрузка моделей…</option></select></label>'
-            + '<button class="lft-btn" type="submit">Найти код</button>'
+            + '<button class="lft-btn app-find" type="submit" aria-label="Найти код">' + icon('search') + '<span>Найти код</span></button>'
             + '<p class="app-field-error lft-label" id="code-error" hidden></p>'
             + '</form>'
             + '<div class="fp-cols app-cols">'

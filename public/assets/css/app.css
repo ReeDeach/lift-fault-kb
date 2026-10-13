@@ -241,7 +241,7 @@ body{background:var(--ground);color:var(--ink);font-family:var(--font-sans);marg
 .app-input:disabled{cursor:not-allowed}
 .fp-field:focus-within,.app-select:focus-within{outline:2px solid var(--ink);outline-offset:2px}
 .app-input[aria-invalid="true"]{color:var(--signal)}
-.app-select{position:relative;padding-right:10px}
+.app-select{position:relative;padding-right:10px;min-width:260px}
 .app-select select{appearance:none;-webkit-appearance:none;background:transparent;border:0;outline:0;color:var(--ink);font:500 12px/1 var(--font-mono);padding-right:18px;max-width:260px;cursor:pointer}
 .app-select select option{background:var(--surface);color:var(--ink)}
 .app-select::after{content:"";position:absolute;right:12px;top:50%;width:6px;height:6px;border-right:2px solid var(--accent);border-bottom:2px solid var(--accent);transform:translateY(-70%) rotate(45deg);pointer-events:none}
@@ -378,6 +378,8 @@ a.nf-act:hover span{color:var(--accent)}
 .app-ai-text textarea{resize:none;height:24px;max-height:132px;line-height:22px;font-size:15px;overflow-y:auto}
 .app-ai-send{display:inline-flex;gap:8px;align-items:center;justify-content:center;height:48px}
 .app-ai-send .lft-icon{width:16px;height:16px}
+.app-find{display:inline-flex;gap:8px;align-items:center;justify-content:center}
+.app-find .lft-icon{width:16px;height:16px}
 .app-ai-code{width:180px}
 .app-ai-code input{font-family:var(--font-mono);text-transform:uppercase}
 .app-ai-code input::placeholder{text-transform:none}
@@ -408,6 +410,7 @@ a.nf-act:hover span{color:var(--accent)}
 .app-dd{position:absolute;top:calc(100% + 4px);left:-1px;z-index:30;min-width:calc(100% + 2px);width:max-content;max-width:min(420px,90vw);max-height:340px;overflow-y:auto;background:var(--surface);border:1px solid var(--line);box-shadow:var(--glow-accent);scrollbar-color:var(--line-faint) transparent}
 .app-dd-opt{display:grid;grid-template-columns:1fr auto;grid-template-areas:"maker count" "name count";gap:2px 16px;align-items:center;width:100%;padding:12px 14px;background:transparent;border:0;border-bottom:1px solid var(--line-faint);color:var(--ink);text-align:left;cursor:pointer}
 .app-dd-opt:last-child{border-bottom:0}
+.app-dd-group{padding:14px 14px 6px;color:var(--accent);border-bottom:1px solid var(--line-faint)}
 .app-dd-opt .lft-label{grid-area:maker}
 .app-dd-name{grid-area:name;font:400 15px/20px var(--font-sans)}
 .app-dd-opt:not(:has(.lft-label)) .app-dd-name{grid-row:1/-1}
@@ -493,10 +496,15 @@ a.app-type{display:inline-flex;align-items:center;text-decoration:none}
   .app-cols #code-main{order:1}
   .app-cols #code-side{order:3}
   .app-cols>section+section{border-top:1px solid var(--line)}
-  .app-select{flex:1}
+  .app-select{flex:1;min-width:0}
   .app-select select{max-width:none;width:100%}
   .app-dd-btn{max-width:none}
-  .app-search .lft-btn{flex:1}
+  /* Модель с производителем не влезала: поиск — квадратной кнопкой у поля, список на всю строку */
+  .app-search .fp-field{flex:1 1 0}
+  .app-search .app-find{order:1;flex:none;width:48px;height:48px;padding:0}
+  .app-search .app-find span:not(.lft-icon){display:none}
+  .app-search .app-select{order:2;flex:1 1 100%}
+  .app-search .app-field-error{order:3}
   .app-field-error{position:static;flex-basis:100%}
   .app-pad,.app-loading{padding:24px 16px}
   .app-table-wrap{padding:16px!important}
