@@ -1,6 +1,6 @@
 /*
  * Lift Fault Terminal: интерфейс справочника на jQuery.
- * Экраны переключаются по адресу после #: #/codes, #/journal, #/base, #/ai.
+ * Экраны переключаются по адресу после #: #/codes, #/journal, #/base, #/ai, #/requests, #/chat.
  * Все данные приходят из REST API (/api/...), разметка — классы из app.css.
  * Текст из API вставляется только через esc(). Без экранирования вставляются лишь
  * title_html и snippet_html из /api/search: сервер экранирует их сам и оставляет только <mark>.
@@ -1652,6 +1652,771 @@
         });
     }
 
+    // ---------- Связь: заявки на запчасти и общий чат ----------
+    // Заявку подаёт механик, мастер отвечает в её переписке и меняет статус. Чат общий для
+    // механиков всех участков и мастера. Новые сообщения подтягиваются опросом сервера.
+    // Фото телефон сам уменьшает до 1600 точек по стороне и отправляет JPEG: так снимок
+    // весит сотни килобайт, а не мегабайты, и в нём не остаётся координат съёмки.
+
+    var REQUEST_STATUSES = {
+        new: { text: 'новая', cls: 'lft-badge--warn' },
+        accepted: { text: 'принята', cls: '' },
+        ordered: { text: 'заказана', cls: '' },
+        ready: { text: 'пришла', cls: 'lft-badge--ok' },
+        issued: { text: 'выдана', cls: '' },
+        rejected: { text: 'отклонена', cls: 'lft-badge--alarm' }
+    };
+    var STATUS_EVENTS = {
+        new: 'Заявка подана',
+        accepted: 'Заявка принята',
+        ordered: 'Деталь заказана',
+        ready: 'Деталь пришла, можно забирать',
+        issued: 'Деталь выдана',
+        rejected: 'Заявка отклонена'
+    };
+    var STATUS_STEPS = ['new', 'accepted', 'ordered', 'ready', 'issued'];
+    var MASTER_STATUSES = ['accepted', 'ordered', 'ready', 'issued', 'rejected'];
+    var PHOTO_SIDE = 1600;
+    var MAX_PHOTOS = 4;
+    var SEEN_CHAT = 'lft:seen-chat';
+    var SEEN_REQUESTS = 'lft:seen-requests';
+    var trays = {};
+    var pollTimer = null;
+
+    function asRole() {
+        return isMaster() ? 'master' : undefined;
+    }
+
+    function pad2(n) {
+        return (n < 10 ? '0' : '') + n;
+    }
+
+    function startOfDay(d) {
+        var x = new Date(d);
+        x.setHours(0, 0, 0, 0);
+        return x;
+    }
+
+    // Время сообщения: сегодня — только часы, вчера — «вчера», раньше — дата
+    function when(iso) {
+        var d = new Date(iso);
+        if (isNaN(d.getTime())) {
+            return '';
+        }
+        var hm = pad2(d.getHours()) + ':' + pad2(d.getMinutes());
+        var days = Math.round((startOfDay(new Date()) - startOfDay(d)) / 86400000);
+        if (days === 0) {
+            return hm;
+        }
+        return (days === 1 ? 'вчера' : pad2(d.getDate()) + '.' + pad2(d.getMonth() + 1)) + ' ' + hm;
+    }
+
+    function clock(iso) {
+        var d = new Date(iso);
+        return isNaN(d.getTime()) ? '' : pad2(d.getHours()) + ':' + pad2(d.getMinutes());
+    }
+
+    function dayLabel(iso) {
+        var d = new Date(iso);
+        var days = Math.round((startOfDay(new Date()) - startOfDay(d)) / 86400000);
+        if (days === 0) {
+            return 'Сегодня';
+        }
+        if (days === 1) {
+            return 'Вчера';
+        }
+        return d.toLocaleDateString('ru-RU', { day: 'numeric', month: 'long' });
+    }
+
+    function remember(key, value) {
+        try {
+            if (value === undefined) {
+                return localStorage.getItem(key);
+            }
+            localStorage.setItem(key, value);
+        } catch (e) { /* без хранилища значки «новое» просто не запоминаются */ }
+        return null;
+    }
+
+    function statusBadge(status) {
+        var s = REQUEST_STATUSES[status] || { text: status, cls: '' };
+        return '<span class="lft-badge app-req-status ' + s.cls + '">' + esc(s.text) + '</span>';
+    }
+
+    function photosHtml(photos) {
+        if (!photos || !photos.length) {
+            return '';
+        }
+        var html = '<div class="app-photos app-photos--' + Math.min(photos.length, 4) + '">';
+        $.each(photos, function (_, p) {
+            html += '<button type="button" class="app-photo" data-photo="' + esc(p.url) + '" aria-label="Открыть фото">'
+                + '<img src="' + esc(p.url) + '" alt="" loading="lazy" width="' + Number(p.width) + '" height="' + Number(p.height) + '"></button>';
+        });
+        return html + '</div>';
+    }
+
+    // Сообщение чата или переписки по заявке. В заявке смена статуса — отдельной строкой.
+    function messageHtml(m, inRequest) {
+        var master = m.author.role === 'master';
+        var who = master ? 'Мастер' : m.author.name;
+        // «Моё» — с этого аккаунта и в той же роли: мастер, он же механик, видит свои сообщения
+        // мастером справа только в роли мастера
+        var mine = m.mine && master === isMaster();
+        var cls = 'app-msg' + (mine ? ' is-mine' : '') + (master ? ' is-master' : '');
+        var html = '<div class="' + cls + '" data-msg="' + Number(m.id) + '">';
+        var bubble = !!(m.body || m.photos.length);
+        if (inRequest && m.status) {
+            // Кто и когда — в сообщении под строкой статуса, а если текста нет — в самой строке
+            html += '<p class="app-msg-event lft-label">' + icon(m.status === 'rejected' ? 'fault' : 'ok', 'lft-icon--12')
+                + '<span>' + esc(STATUS_EVENTS[m.status] || m.status) + (bubble ? '' : ' · ' + esc(who) + ' · ' + esc(clock(m.at))) + '</span></p>';
+        }
+        if (bubble) {
+            html += '<div class="app-msg-bubble">'
+                + '<span class="app-msg-who lft-label">' + icon(master ? 'building' : 'settings', 'lft-icon--12')
+                + '<b>' + esc(who) + '</b>'
+                + (!master && !inRequest && m.author.section ? '<span>' + esc(m.author.section) + '</span>' : '')
+                + '<time>' + esc(clock(m.at)) + '</time></span>'
+                + (m.body ? '<p class="app-msg-text">' + esc(m.body) + '</p>' : '')
+                + photosHtml(m.photos)
+                + '</div>';
+        }
+        return html + '</div>';
+    }
+
+    // Лента сообщений с подписями дней
+    function appendMessages($list, messages, inRequest) {
+        var lastDay = $list.data('day') || '';
+        var html = '';
+        $.each(messages, function (_, m) {
+            if ($list.find('[data-msg="' + Number(m.id) + '"]').length) {
+                return;
+            }
+            var day = dayLabel(m.at);
+            if (day !== lastDay) {
+                html += '<p class="app-day lft-label"><span>' + esc(day) + '</span></p>';
+                lastDay = day;
+            }
+            html += messageHtml(m, inRequest);
+        });
+        $list.data('day', lastDay).append(html);
+    }
+
+    function nearBottom() {
+        return window.innerHeight + window.scrollY >= document.documentElement.scrollHeight - 160;
+    }
+
+    function scrollToBottom() {
+        window.scrollTo(0, document.documentElement.scrollHeight);
+    }
+
+    function stopPolling() {
+        if (pollTimer) {
+            clearInterval(pollTimer);
+            pollTimer = null;
+        }
+    }
+
+    function poll(token, seconds, fn) {
+        stopPolling();
+        pollTimer = setInterval(function () {
+            if (token !== renderToken) {
+                stopPolling();
+                return;
+            }
+            if (!document.hidden) {
+                fn();
+            }
+        }, seconds * 1000);
+    }
+
+    // ---------- Фото: уменьшение на телефоне и загрузка ----------
+
+    function shrinkPhoto(file) {
+        var d = $.Deferred();
+        var url = URL.createObjectURL(file);
+        var img = new Image();
+        img.onload = function () {
+            var scale = Math.min(1, PHOTO_SIDE / Math.max(img.naturalWidth, img.naturalHeight));
+            var canvas = document.createElement('canvas');
+            canvas.width = Math.max(1, Math.round(img.naturalWidth * scale));
+            canvas.height = Math.max(1, Math.round(img.naturalHeight * scale));
+            canvas.getContext('2d').drawImage(img, 0, 0, canvas.width, canvas.height);
+            URL.revokeObjectURL(url);
+            d.resolve(canvas.toDataURL('image/jpeg', 0.82));
+        };
+        img.onerror = function () {
+            URL.revokeObjectURL(url);
+            d.reject({ message: 'Не удалось открыть фото. Выберите снимок JPEG или PNG' });
+        };
+        img.src = url;
+        return d.promise();
+    }
+
+    function trayHtml(key) {
+        return '<div class="app-tray" data-tray="' + key + '" hidden></div>';
+    }
+
+    function attachHtml(key) {
+        return '<label class="app-attach" title="Приложить фото" aria-label="Приложить фото">' + icon('camera')
+            + '<input type="file" accept="image/*" multiple data-tray-input="' + key + '"></label>';
+    }
+
+    function drawTray(key) {
+        var items = trays[key] || [];
+        var html = '';
+        $.each(items, function (i, p) {
+            html += '<span class="app-tray-item' + (p.busy ? ' is-busy' : '') + '"><img src="' + esc(p.preview) + '" alt="">'
+                + (p.busy ? '<i class="lft-label">…</i>' : '')
+                + '<button type="button" class="app-tray-x" data-tray-remove="' + key + '" data-index="' + i + '" aria-label="Убрать фото">×</button></span>';
+        });
+        $('[data-tray="' + key + '"]').html(html).prop('hidden', !items.length);
+        $('[data-tray-input="' + key + '"]').closest('.app-attach').toggleClass('is-full', items.length >= MAX_PHOTOS);
+    }
+
+    function addPhotos(key, files, $error) {
+        trays[key] = trays[key] || [];
+        var room = MAX_PHOTOS - trays[key].length;
+        if (files.length > room) {
+            $error.text('Не больше ' + MAX_PHOTOS + ' фото в одном сообщении').prop('hidden', false);
+        }
+        $.each(Array.prototype.slice.call(files, 0, Math.max(0, room)), function (_, file) {
+            var item = { id: null, busy: true, preview: URL.createObjectURL(file) };
+            trays[key].push(item);
+            drawTray(key);
+            shrinkPhoto(file).then(function (data) {
+                return apiPost('/api/uploads', { data: data });
+            }).then(function (res) {
+                item.id = res.item.id;
+                item.busy = false;
+                drawTray(key);
+            }, function (error) {
+                trays[key] = $.grep(trays[key], function (p) { return p !== item; });
+                URL.revokeObjectURL(item.preview);
+                drawTray(key);
+                $error.text(error.message).prop('hidden', false);
+            });
+        });
+    }
+
+    function trayIds(key) {
+        return $.map(trays[key] || [], function (p) { return p.id; });
+    }
+
+    function trayBusy(key) {
+        return $.grep(trays[key] || [], function (p) { return p.busy; }).length > 0;
+    }
+
+    function clearTray(key) {
+        $.each(trays[key] || [], function (_, p) {
+            URL.revokeObjectURL(p.preview);
+        });
+        trays[key] = [];
+        drawTray(key);
+    }
+
+    function errorText(error) {
+        var fields = $.map(error.fields || {}, function (t) { return t; });
+        return fields.length ? fields.join(' · ') : error.message;
+    }
+
+    function composerHtml(key, placeholder, extra) {
+        return '<form class="ch-input app-ai-form app-compose" data-compose="' + key + '">'
+            + (extra || '')
+            + trayHtml(key)
+            + '<div class="app-ai-row">'
+            + attachHtml(key)
+            + '<label class="fp-field app-ai-text">'
+            + '<textarea class="app-input" data-compose-text rows="1" maxlength="2000" placeholder="' + esc(placeholder) + '" aria-label="Сообщение"></textarea></label>'
+            + '<button class="lft-btn app-ai-send" type="submit" aria-label="Отправить">' + icon('arrow-up') + '<span>Отправить</span></button>'
+            + '</div>'
+            + '<p class="app-field-error lft-label" data-compose-error hidden></p>'
+            + '</form>';
+    }
+
+    // ---------- Экран «Чат» ----------
+
+    var chatState = { first: null, last: 0 };
+
+    function renderChat(token) {
+        chatState = { first: null, last: 0 };
+        trays.chat = [];
+        $view.html(
+            '<div class="app-ai-page app-chat-page">'
+            + '<div class="app-chat-head"><span class="lft-label">' + icon('chat', 'lft-icon--12') + ' Чат · все участки</span>'
+            + '<span class="lft-label app-muted">механики и мастер</span></div>'
+            + '<div class="app-msgs" id="chat-list">' + loading('Загрузка сообщений') + '</div>'
+            + composerHtml('chat', 'Сообщение в общий чат')
+            + '</div>'
+        );
+
+        api('/api/chat').then(function (data) {
+            if (token !== renderToken) {
+                return;
+            }
+            var $list = $('#chat-list').empty().removeData('day');
+            if (data.items.length >= 50) {
+                $list.append('<div class="app-more"><button type="button" class="lft-btn lft-btn--ghost" id="chat-older">Раньше</button></div>');
+            }
+            if (!data.items.length) {
+                $list.append('<p class="app-empty" id="chat-empty">Сообщений пока нет. Напишите первым: вопрос по неисправности, ищу деталь, кто рядом.</p>');
+            }
+            appendMessages($list, data.items, false);
+            noteChat(data.items);
+            scrollToBottom();
+            poll(token, 4, pollChat);
+        }, function (error) {
+            $('#chat-list').html('<div class="app-pad">' + errorWindow(error, 'Чат') + '</div>');
+        });
+    }
+
+    function noteChat(items) {
+        if (!items.length) {
+            return;
+        }
+        chatState.first = chatState.first === null ? items[0].id : Math.min(chatState.first, items[0].id);
+        chatState.last = Math.max(chatState.last, items[items.length - 1].id);
+        remember(SEEN_CHAT, String(chatState.last));
+        drawDots();
+    }
+
+    function pollChat() {
+        api('/api/chat', { after: chatState.last }).then(function (data) {
+            if (!data.items.length || currentRoute().page !== 'chat') {
+                return;
+            }
+            var stick = nearBottom();
+            $('#chat-empty').remove();
+            appendMessages($('#chat-list'), data.items, false);
+            noteChat(data.items);
+            if (stick) {
+                scrollToBottom();
+            }
+        });
+    }
+
+    function loadOlderChat() {
+        var $btn = $('#chat-older').prop('disabled', true).text('Загрузка…');
+        api('/api/chat', { before: chatState.first }).then(function (data) {
+            var height = document.documentElement.scrollHeight;
+            var $older = $('<div></div>');
+            appendMessages($older, data.items, false);
+            $btn.parent().remove();
+            // Подпись дня первого из уже показанных сообщений может повториться: убираем лишнюю
+            var $list = $('#chat-list');
+            var firstDay = $list.children('.app-day').first();
+            if (firstDay.length && $older.children('.app-day').last().text() === firstDay.text()) {
+                firstDay.remove();
+            }
+            $list.prepend($older.children());
+            if (data.items.length >= 50) {
+                $list.prepend('<div class="app-more"><button type="button" class="lft-btn lft-btn--ghost" id="chat-older">Раньше</button></div>');
+            }
+            if (data.items.length) {
+                chatState.first = data.items[0].id;
+            }
+            window.scrollBy(0, document.documentElement.scrollHeight - height);
+        }, function () {
+            $btn.prop('disabled', false).text('Раньше');
+        });
+    }
+
+    // ---------- Экран «Заявки» ----------
+
+    function renderRequests(params, token) {
+        stopPolling();
+        if (params.new) {
+            renderNewRequest(token);
+        } else if (params.id) {
+            renderRequest(Number(params.id), token);
+        } else {
+            renderRequestList(params, token);
+        }
+    }
+
+    function requestCardHtml(r, master) {
+        var meta = [];
+        if (master) {
+            meta.push(esc(r.author.name) + (r.author.section ? ' · ' + esc(r.author.section) : ''));
+        }
+        if (r.lift) {
+            meta.push(esc(liftName(r.lift)));
+        }
+        return '<li><a class="app-req" href="' + hashFor('requests', { id: r.id }) + '">'
+            + '<span class="app-req-top">' + statusBadge(r.status)
+            + (r.urgent ? '<span class="lft-badge lft-badge--alarm">срочно</span>' : '')
+            + '<time class="lft-label">' + esc(when(r.updated_at)) + '</time></span>'
+            + '<span class="app-req-title">' + esc(r.title) + (r.quantity ? ' <span class="app-muted">· ' + esc(r.quantity) + '</span>' : '') + '</span>'
+            + (meta.length ? '<span class="app-req-meta lft-label">' + meta.join(' · ') + '</span>' : '')
+            + (r.last_body ? '<span class="app-req-last">' + (r.last_by_master ? '<b>Мастер:</b> ' : '') + esc(r.last_body) + '</span>' : '')
+            + '<span class="app-req-count lft-label">' + icon('chat', 'lft-icon--12') + r.messages_count
+            + (r.photos_count ? ' ' + icon('camera', 'lft-icon--12') + r.photos_count : '') + '</span>'
+            + '</a></li>';
+    }
+
+    function renderRequestList(params, token) {
+        var master = isMaster();
+        var open = master && params.all !== '1';
+        $view.html(
+            '<div class="app-pad app-req-page">'
+            + '<div class="app-req-head"><div><p class="lft-label">' + icon('box', 'lft-icon--12') + ' Заявки на запчасти</p>'
+            + '<p class="fp-title">' + (master ? 'Заявки механиков' : 'Мои заявки') + '</p></div>'
+            + (master ? '' : '<a class="lft-btn" href="' + hashFor('requests', { new: 1 }) + '">' + icon('box') + 'Новая заявка</a>')
+            + '</div>'
+            + (master ? '<div class="app-types app-journal-tabs" role="tablist">'
+                + '<a class="fp-chip app-type" aria-pressed="' + open + '" href="' + hashFor('requests', {}) + '">Открытые</a>'
+                + '<a class="fp-chip app-type" aria-pressed="' + !open + '" href="' + hashFor('requests', { all: 1 }) + '">Все</a></div>' : '')
+            + '<div id="req-list">' + loading() + '</div>'
+            + '</div>'
+        );
+
+        api('/api/requests', { as: asRole(), open: open ? 1 : undefined }).then(function (data) {
+            if (token !== renderToken) {
+                return;
+            }
+            if (!data.items.length) {
+                $('#req-list').html('<p class="app-empty">' + (master
+                    ? (open ? 'Открытых заявок нет.' : 'Заявок пока нет.')
+                    : 'Заявок пока нет. Нужна деталь — нажмите «Новая заявка», приложите фото, мастер ответит здесь же.') + '</p>');
+                return;
+            }
+            var html = '<ul class="app-req-list">';
+            $.each(data.items, function (_, r) {
+                html += requestCardHtml(r, master);
+            });
+            $('#req-list').html(html + '</ul>');
+            markRequestsSeen(data.items);
+        }, function (error) {
+            $('#req-list').html(errorWindow(error, 'Заявки'));
+        });
+    }
+
+    function markRequestsSeen(items) {
+        var latest = remember(SEEN_REQUESTS) || '';
+        $.each(items, function (_, r) {
+            if (r.updated_at > latest) {
+                latest = r.updated_at;
+            }
+        });
+        remember(SEEN_REQUESTS, latest);
+        drawDots();
+    }
+
+    function stepsHtml(status) {
+        if (status === 'rejected') {
+            return '<p class="app-req-rejected lft-label">' + icon('fault', 'lft-icon--12') + 'Заявка отклонена</p>';
+        }
+        var at = STATUS_STEPS.indexOf(status);
+        var html = '<ol class="app-steps">';
+        $.each(STATUS_STEPS, function (i, s) {
+            html += '<li class="' + (i < at ? 'is-done' : (i === at ? 'is-now' : '')) + '"><i></i><span class="lft-label">' + esc(REQUEST_STATUSES[s].text) + '</span></li>';
+        });
+        return html + '</ol>';
+    }
+
+    function renderRequest(id, token) {
+        $view.html('<div class="app-ai-page app-req-page">'
+            + '<div class="app-pad app-req-detail" id="req-detail">' + loading() + '</div>'
+            + '<div class="app-msgs" id="req-thread"></div>'
+            + '<div id="req-compose"></div></div>');
+
+        api('/api/requests/' + id, { as: asRole() }).then(function (data) {
+            if (token === renderToken) {
+                drawRequest(data.item, token);
+                poll(token, 8, function () {
+                    pollRequest(id, token);
+                });
+            }
+        }, function (error) {
+            $('#req-detail').html('<a class="app-back lft-label" href="' + hashFor('requests', {}) + '">← Все заявки</a>' + errorWindow(error, 'Заявка'));
+        });
+    }
+
+    function drawRequest(r, token) {
+        var master = isMaster();
+        document.title = r.title + ' — заявка · Lift Fault Terminal';
+        $('#req-detail').html(
+            '<a class="app-back lft-label" href="' + hashFor('requests', {}) + '">← Все заявки</a>'
+            + '<div class="app-req-card">'
+            + '<p class="app-req-top">' + statusBadge(r.status) + (r.urgent ? '<span class="lft-badge lft-badge--alarm">срочно</span>' : '')
+            + '<span class="lft-label">№ ' + r.id + ' · ' + esc(when(r.created_at)) + '</span></p>'
+            + '<p class="fp-title">' + esc(r.title) + '</p>'
+            + '<dl class="app-req-facts">'
+            + (r.quantity ? '<div><dt class="lft-label">Количество</dt><dd>' + esc(r.quantity) + '</dd></div>' : '')
+            + '<div><dt class="lft-label">Механик</dt><dd>' + esc(r.author.name) + (r.author.section ? ' · ' + esc(r.author.section) : '') + '</dd></div>'
+            + (r.lift ? '<div><dt class="lft-label">Лифт</dt><dd>' + esc(liftName(r.lift)) + '</dd></div>' : '')
+            + '</dl>'
+            + stepsHtml(r.status)
+            + '</div>'
+        );
+        var $thread = $('#req-thread').empty().removeData('day');
+        appendMessages($thread, r.messages, true);
+        $('#req-thread').data('count', r.messages.length);
+
+        var mine = !master && session.me.mechanic && r.author.id === session.me.mechanic.id;
+        if (master || mine) {
+            trays.req = [];
+            var extra = '';
+            if (master) {
+                extra = '<div class="app-status-pick" role="group" aria-label="Сменить статус"><span class="lft-label">Статус</span>';
+                $.each(MASTER_STATUSES, function (_, s) {
+                    extra += '<button type="button" class="fp-chip app-type" data-req-status="' + s + '" aria-pressed="false"' + (s === r.status ? ' disabled' : '') + '>'
+                        + esc(REQUEST_STATUSES[s].text) + '</button>';
+                });
+                extra += '</div>';
+            } else if (r.status === 'ready') {
+                extra = '<button type="button" class="lft-btn app-got" data-req-got>' + icon('ok') + 'Получил деталь</button>';
+            }
+            $('#req-compose').html(composerHtml('req', master ? 'Ответ механику' : 'Сообщение мастеру', extra));
+            $('#req-compose form').data('request', r.id);
+        }
+        markRequestsSeen([r]);
+    }
+
+    // Новое в переписке: заявка перерисовывается (статус и кнопки тоже могли поменяться),
+    // набранный текст и выбранные фото остаются
+    function pollRequest(id, token, force) {
+        return api('/api/requests/' + id, { as: asRole() }).then(function (data) {
+            if (token !== renderToken || (!force && data.item.messages.length === $('#req-thread').data('count'))) {
+                return;
+            }
+            var stick = force || nearBottom();
+            var text = $('#req-compose textarea').val();
+            var keep = trays.req;
+            drawRequest(data.item, token);
+            $('#req-compose textarea').val(text || '');
+            trays.req = keep || [];
+            drawTray('req');
+            if (stick) {
+                scrollToBottom();
+            }
+        });
+    }
+
+    function renderNewRequest(token) {
+        if (isMaster()) {
+            go('requests', {}, true);
+            return;
+        }
+        trays.newreq = [];
+        $view.html(
+            '<div class="app-pad app-req-page">'
+            + '<a class="app-back lft-label" href="' + hashFor('requests', {}) + '">← Мои заявки</a>'
+            + '<form class="lft-window app-req-form" id="req-form" novalidate>'
+            + '<div class="lft-window__bar"><span class="lft-label">' + icon('box', 'lft-icon--12') + ' Новая заявка мастеру</span>'
+            + '<span class="lft-window__x" aria-hidden="true">×</span></div>'
+            + '<div class="lft-window__body">'
+            + '<label class="app-field"><span class="lft-label">Что нужно *</span>'
+            + '<input class="app-draft-input" name="title" maxlength="255" required placeholder="Например: контакт ВКЗ, ремень привода дверей" autocomplete="off"></label>'
+            + '<div class="app-field-row">'
+            + '<label class="app-field"><span class="lft-label">Количество</span>'
+            + '<input class="app-draft-input" name="quantity" maxlength="50" placeholder="2 шт" autocomplete="off"></label>'
+            + '<button type="button" class="fp-chip app-type app-urgent" id="req-urgent" aria-pressed="false">' + icon('warning', 'lft-icon--12') + 'Срочно</button>'
+            + '</div>'
+            + '<div class="app-field"><span class="lft-label">Лифт</span>'
+            + '<label class="fp-chip app-select">' + icon('lift')
+            + '<select name="lift_id" id="req-lift" aria-label="Лифт"><option value="">Загрузка лифтов…</option></select></label></div>'
+            + '<label class="app-field"><span class="lft-label">Комментарий</span>'
+            + '<textarea class="app-draft-input" name="body" rows="3" maxlength="2000" placeholder="Что случилось, марка или номер детали, если известны"></textarea></label>'
+            + '<div class="app-field"><span class="lft-label">Фото детали или шильдика · до ' + MAX_PHOTOS + '</span>'
+            + '<div class="app-field-row">' + attachHtml('newreq') + trayHtml('newreq') + '</div></div>'
+            + '<p class="app-field-error lft-label" id="req-error" hidden></p>'
+            + '<button type="submit" class="lft-btn" id="req-submit">' + icon('arrow-up') + 'Отправить мастеру</button>'
+            + '</div></form></div>'
+        );
+
+        loadLifts().then(function (places) {
+            if (token !== renderToken) {
+                return;
+            }
+            var me = session.me.mechanic ? session.me.mechanic.id : null;
+            var html = '<option value="">Без привязки к лифту</option>';
+            $.each(places, function (_, p) {
+                if (p.mechanic_id !== me) {
+                    return;
+                }
+                $.each(p.lifts, function (_, l) {
+                    html += '<option value="' + Number(l.id) + '">'
+                        + esc(liftName({ address: p.address, object_name: p.object_name, lift_no: l.lift_no })) + '</option>';
+                });
+            });
+            $('#req-lift').html(html).trigger('lft:refresh');
+        });
+    }
+
+    function submitNewRequest() {
+        var $form = $('#req-form');
+        var $error = $('#req-error').prop('hidden', true);
+        if (trayBusy('newreq')) {
+            $error.text('Подождите, фото ещё загружается').prop('hidden', false);
+            return;
+        }
+        var lift = $form.find('[name="lift_id"]').val();
+        var body = {
+            title: $.trim($form.find('[name="title"]').val()),
+            quantity: $.trim($form.find('[name="quantity"]').val()) || null,
+            urgent: $('#req-urgent').attr('aria-pressed') === 'true',
+            lift_id: lift ? Number(lift) : null,
+            body: $.trim($form.find('[name="body"]').val()) || null,
+            photos: trayIds('newreq')
+        };
+        if (!body.title) {
+            $error.text('Напишите, что нужно').prop('hidden', false);
+            $form.find('[name="title"]').trigger('focus');
+            return;
+        }
+        $('#req-submit').prop('disabled', true).attr('aria-busy', 'true');
+        apiPost('/api/requests', body).then(function (data) {
+            trays.newreq = [];
+            go('requests', { id: data.item.id }, true);
+        }, function (error) {
+            $('#req-submit').prop('disabled', false).removeAttr('aria-busy');
+            $error.text(errorText(error)).prop('hidden', false);
+        });
+    }
+
+    function submitCompose($form) {
+        var key = $form.data('compose');
+        var $text = $form.find('[data-compose-text]');
+        var $error = $form.find('[data-compose-error]').prop('hidden', true);
+        var $status = $form.find('[data-req-status][aria-pressed="true"]');
+        var body = { body: $.trim($text.val()) || null, photos: trayIds(key), as: asRole() };
+        if ($status.length) {
+            body.status = String($status.data('req-status'));
+        }
+        if (trayBusy(key)) {
+            $error.text('Подождите, фото ещё загружается').prop('hidden', false);
+            return;
+        }
+        if (!body.body && !body.photos.length && !body.status) {
+            $text.trigger('focus');
+            return;
+        }
+        var url = key === 'chat' ? '/api/chat' : '/api/requests/' + Number($form.data('request')) + '/messages';
+        var $send = $form.find('.app-ai-send').prop('disabled', true).attr('aria-busy', 'true');
+        apiPost(url, body).then(function (data) {
+            $send.prop('disabled', false).removeAttr('aria-busy');
+            $text.val('');
+            growTextarea($text[0]);
+            clearTray(key);
+            if (key === 'chat') {
+                $('#chat-empty').remove();
+                appendMessages($('#chat-list'), [data.item], false);
+                noteChat([data.item]);
+                scrollToBottom();
+            } else {
+                pollRequest(Number($form.data('request')), renderToken, true);
+            }
+        }, function (error) {
+            $send.prop('disabled', false).removeAttr('aria-busy');
+            $error.text(errorText(error)).prop('hidden', false);
+        });
+    }
+
+    // ---------- Значки «есть новое» на вкладках ----------
+
+    function drawDots() {
+        var u = session.updates;
+        if (!u) {
+            return;
+        }
+        var page = currentRoute().page;
+        var chat = u.chat_last_id > Number(remember(SEEN_CHAT) || 0) && page !== 'chat';
+        var req = !!u.requests_updated_at && u.requests_updated_at > (remember(SEEN_REQUESTS) || '') && page !== 'requests';
+        $('[data-page="chat"]').toggleClass('has-new', chat);
+        $('[data-page="requests"]').toggleClass('has-new', req);
+    }
+
+    function checkUpdates() {
+        if (!session.role || document.hidden) {
+            return;
+        }
+        api('/api/updates', { as: asRole() }).then(function (u) {
+            // Первое открытие: старое не считается новым
+            if (remember(SEEN_CHAT) === null) {
+                remember(SEEN_CHAT, String(u.chat_last_id));
+            }
+            if (remember(SEEN_REQUESTS) === null) {
+                remember(SEEN_REQUESTS, u.requests_updated_at || '');
+            }
+            session.updates = u;
+            drawDots();
+        });
+    }
+
+    setInterval(checkUpdates, 30000);
+
+    $(document)
+        .on('change', '[data-tray-input]', function () {
+            var key = $(this).data('tray-input');
+            var $error = key === 'newreq' ? $('#req-error') : $(this).closest('form').find('[data-compose-error]');
+            $error.prop('hidden', true);
+            addPhotos(key, this.files, $error);
+            this.value = '';
+        })
+        .on('click', '[data-tray-remove]', function () {
+            var key = $(this).data('tray-remove');
+            var item = trays[key][Number($(this).data('index'))];
+            if (item) {
+                URL.revokeObjectURL(item.preview);
+                trays[key].splice(Number($(this).data('index')), 1);
+                drawTray(key);
+            }
+        })
+        .on('submit', '[data-compose]', function (e) {
+            e.preventDefault();
+            submitCompose($(this));
+        })
+        .on('keydown', '[data-compose-text]', function (e) {
+            var desktop = window.matchMedia('(hover: hover) and (pointer: fine)').matches;
+            if (e.key === 'Enter' && ((desktop && !e.shiftKey) || e.ctrlKey || e.metaKey)) {
+                e.preventDefault();
+                submitCompose($(this).closest('form'));
+            }
+        })
+        .on('input', '[data-compose-text]', function () {
+            growTextarea(this);
+        })
+        .on('click', '[data-req-status]', function () {
+            var on = $(this).attr('aria-pressed') !== 'true';
+            $('[data-req-status]').attr('aria-pressed', 'false');
+            $(this).attr('aria-pressed', String(on));
+            $(this).closest('form').find('[data-compose-text]').attr('placeholder', on ? 'Комментарий к статусу, можно пусто' : 'Ответ механику');
+        })
+        .on('click', '[data-req-got]', function () {
+            var $form = $(this).closest('form');
+            $(this).prop('disabled', true);
+            apiPost('/api/requests/' + Number($form.data('request')) + '/messages', { status: 'issued', body: 'Получил.' }).then(function () {
+                pollRequest(Number($form.data('request')), renderToken, true);
+            }, function (error) {
+                $form.find('[data-compose-error]').text(errorText(error)).prop('hidden', false);
+            });
+        })
+        .on('click', '#chat-older', loadOlderChat)
+        .on('click', '#req-urgent', function () {
+            $(this).attr('aria-pressed', String($(this).attr('aria-pressed') !== 'true'));
+        })
+        .on('submit', '#req-form', function (e) {
+            e.preventDefault();
+            submitNewRequest();
+        })
+        .on('click', '[data-photo]', function () {
+            $('body').addClass('app-dd-lock').append(
+                '<div class="app-viewer" role="dialog" aria-label="Фото"><img src="' + esc($(this).data('photo')) + '" alt="">'
+                + '<button type="button" class="lft-window__x app-viewer-x" aria-label="Закрыть">×</button></div>'
+            );
+            $('.app-viewer-x').trigger('focus');
+        })
+        .on('click', '.app-viewer', function () {
+            $('.app-viewer').remove();
+            $('body').removeClass('app-dd-lock');
+        })
+        .on('keydown', function (e) {
+            if (e.key === 'Escape' && $('.app-viewer').length) {
+                $('.app-viewer').remove();
+                $('body').removeClass('app-dd-lock');
+            }
+        });
+
     // ---------- Маршрутизация и события ----------
 
     function render() {
@@ -1659,7 +2424,7 @@
         var token = ++renderToken;
         // Отдельного поиска больше нет: поиск по описанию делает ИИ-диагностика
         var page = route.page === 'search' ? 'ai' : route.page;
-        page = { codes: true, journal: true, base: true, ai: true }[page] ? page : 'codes';
+        page = { codes: true, journal: true, base: true, ai: true, requests: true, chat: true }[page] ? page : 'codes';
         if (page === 'base' && !isMaster()) {
             page = 'journal';
         }
@@ -1669,6 +2434,7 @@
         window.scrollTo(0, 0);
 
         closeDropdown(false);
+        stopPolling();
         if (!session.role) {
             renderLogin();
         } else if (page === 'journal') {
@@ -1677,12 +2443,21 @@
             renderBase(route.params, token);
         } else if (page === 'ai') {
             renderAi(token);
+        } else if (page === 'requests') {
+            renderRequests(route.params, token);
+        } else if (page === 'chat') {
+            renderChat(token);
         } else {
             renderCodes(route.params, token);
         }
         $view.find('.app-select select').each(function () {
             customSelect(this);
         });
+        drawDots();
+        if (session.role && Date.now() - (session.checked || 0) > 10000) {
+            session.checked = Date.now();
+            checkUpdates();
+        }
     }
 
     $(document)

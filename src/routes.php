@@ -4,9 +4,11 @@ declare(strict_types=1);
 
 use App\Admin\AdminRepository;
 use App\Auth\IdentityResolver;
+use App\Comms\CommsRepository;
 use App\Controller\AdminController;
 use App\Controller\CatalogController;
 use App\Controller\CodeController;
+use App\Controller\CommsController;
 use App\Controller\DiagnoseController;
 use App\Controller\HealthController;
 use App\Controller\JournalController;
@@ -87,6 +89,38 @@ return static function (Router $router, ?Services $services = null): void {
     $router->get('/api/journal', static fn ($r) => $journal()->index($r));
     $router->post('/api/journal', static fn ($r) => $journal()->create($r));
     $router->delete('/api/journal/{id}', static fn ($r) => $journal()->delete($r));
+
+    // Связь в бригаде: общий чат и заявки на запчасти мастеру, с фото
+    $comms = static fn (): CommsController => new CommsController(
+        $services->identity(),
+        new CommsRepository($services->pdo()),
+        $services->photoStore(),
+    );
+    $router->post('/api/uploads', static function ($r) use ($services, $comms) {
+        $services->rateLimiter()->limit($r, 'upload', 120, 'фото');
+
+        return $comms()->upload($r);
+    });
+    $router->get('/api/files/{token}', static fn ($r) => $comms()->file($r));
+    $router->get('/api/chat', static fn ($r) => $comms()->chat($r));
+    $router->post('/api/chat', static function ($r) use ($services, $comms) {
+        $services->rateLimiter()->limit($r, 'message', 300, 'сообщений');
+
+        return $comms()->postChat($r);
+    });
+    $router->get('/api/requests', static fn ($r) => $comms()->requests($r));
+    $router->post('/api/requests', static function ($r) use ($services, $comms) {
+        $services->rateLimiter()->limit($r, 'message', 300, 'сообщений');
+
+        return $comms()->createRequest($r);
+    });
+    $router->get('/api/requests/{id}', static fn ($r) => $comms()->showRequest($r));
+    $router->post('/api/requests/{id}/messages', static function ($r) use ($services, $comms) {
+        $services->rateLimiter()->limit($r, 'message', 300, 'сообщений');
+
+        return $comms()->postToRequest($r);
+    });
+    $router->get('/api/updates', static fn ($r) => $comms()->updates($r));
 
     // Админ-API: каждый обработчик закрыт токеном
     $admin = static fn (): AdminController => new AdminController(new AdminRepository($services->pdo()), $services->searchIndex());

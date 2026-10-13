@@ -7,6 +7,7 @@ namespace App\Support;
 use App\Ai\GeminiClient;
 use App\Ai\LanguageModel;
 use App\Auth\IdentityResolver;
+use App\Comms\PhotoStore;
 use App\Database\Connection;
 use App\Http\HttpException;
 use App\Search\Documents;
@@ -32,6 +33,7 @@ final class Services
      * @param (Closure(): ?LanguageModel)|null $languageModelFactory
      * @param (Closure(PDO): IdentityResolver)|null $identityFactory
      * @param (Closure(PDO): RateLimiter)|null $rateLimiterFactory
+     * @param (Closure(): PhotoStore)|null $photoStoreFactory
      */
     public function __construct(
         private readonly ?Closure $pdoFactory = null,
@@ -40,7 +42,16 @@ final class Services
         private readonly ?Closure $languageModelFactory = null,
         private readonly ?Closure $identityFactory = null,
         private readonly ?Closure $rateLimiterFactory = null,
+        private readonly ?Closure $photoStoreFactory = null,
     ) {
+    }
+
+    /**
+     * Хранилище фото к сообщениям. В тестах — временная папка.
+     */
+    public function photoStore(): PhotoStore
+    {
+        return $this->photoStoreFactory !== null ? ($this->photoStoreFactory)() : PhotoStore::fromEnv();
     }
 
     /**

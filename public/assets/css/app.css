@@ -60,6 +60,9 @@ body{background:var(--ground);color:var(--ink);font-family:var(--font-sans);marg
 .lft-icon--search{-webkit-mask-image:url(../icons/search.svg);mask-image:url(../icons/search.svg)}
 .lft-icon--settings{-webkit-mask-image:url(../icons/settings.svg);mask-image:url(../icons/settings.svg)}
 .lft-icon--warning{-webkit-mask-image:url(../icons/warning.svg);mask-image:url(../icons/warning.svg)}
+.lft-icon--box{-webkit-mask-image:url(../icons/box.svg);mask-image:url(../icons/box.svg)}
+.lft-icon--camera{-webkit-mask-image:url(../icons/camera.svg);mask-image:url(../icons/camera.svg)}
+.lft-icon--chat{-webkit-mask-image:url(../icons/chat.svg);mask-image:url(../icons/chat.svg)}
 
 /* Каркас экранов: шапка, поиск, колонки, строка статуса (fp-…) */
 
@@ -663,3 +666,111 @@ a.app-type{display:inline-flex;align-items:center;text-decoration:none}
 @keyframes app-drop{from{opacity:0;transform:translateY(-6px)}to{opacity:1;transform:none}}
 @keyframes app-fade{from{opacity:0}}
 @keyframes app-ring{from{transform:scale(1);opacity:.9}to{transform:scale(1.8);opacity:0}}
+
+/* ---------- Связь: заявки и чат ---------- */
+/* Точка «есть новое» на вкладке */
+[data-page].has-new{position:relative}
+[data-page].has-new::after{content:"";position:absolute;top:6px;right:calc(50% - 20px);width:8px;height:8px;background:var(--accent);box-shadow:0 0 0 2px var(--ground)}
+.fp-nav [data-page].has-new::after{top:2px;right:-10px}
+
+.app-msgs{flex:1;display:grid;align-content:start;gap:10px;max-width:960px;width:100%;margin:0 auto;padding:16px 40px 24px}
+.app-chat-head{display:flex;justify-content:space-between;gap:12px;max-width:960px;width:100%;margin:0 auto;padding:20px 40px 0}
+.app-chat-head .lft-label{display:inline-flex;gap:6px;align-items:center}
+.app-day{display:flex;align-items:center;gap:12px;margin:10px 0 2px;color:var(--muted)}
+.app-day::before,.app-day::after{content:"";flex:1;border-top:1px solid var(--line-faint)}
+.app-msg{display:grid;justify-items:start}
+.app-msg.is-mine{justify-items:end}
+.app-msg-bubble{max-width:min(560px,86%);padding:10px 14px 12px;border:1px solid var(--line-faint);background:var(--surface);display:grid;gap:6px}
+.app-msg.is-mine .app-msg-bubble{background:var(--surface-raised);border-color:var(--line)}
+.app-msg.is-master .app-msg-bubble{box-shadow:inset 3px 0 0 var(--accent)}
+.app-msg-who{display:flex;flex-wrap:wrap;align-items:center;gap:6px;color:var(--muted)}
+.app-msg-who b{font-weight:500;color:var(--ink)}
+.app-msg.is-master .app-msg-who b{color:var(--accent)}
+.app-msg-who time{margin-left:auto;padding-left:8px}
+.app-msg-text{margin:0;font:400 15px/22px var(--font-sans);white-space:pre-wrap;overflow-wrap:anywhere}
+.app-msg-event{display:flex;align-items:center;gap:6px;justify-self:center;color:var(--muted);text-align:center;padding:4px 0}
+.app-msg-event .lft-icon{color:var(--accent);flex:none}
+
+.app-photos{display:grid;gap:4px;grid-template-columns:repeat(2,minmax(0,1fr));max-width:360px}
+.app-photos--1{grid-template-columns:minmax(0,1fr)}
+.app-photo{display:block;padding:0;border:1px solid var(--line-faint);background:var(--ground);cursor:zoom-in;aspect-ratio:1;overflow:hidden}
+.app-photos--1 .app-photo{aspect-ratio:auto;max-height:320px}
+.app-photo img{display:block;width:100%;height:100%;object-fit:cover}
+.app-photo:hover,.app-photo:focus-visible{border-color:var(--accent);outline:0}
+.app-viewer{position:fixed;inset:0;z-index:60;display:grid;place-items:center;padding:16px;background:rgba(14,12,11,.94);cursor:zoom-out}
+.app-viewer img{max-width:100%;max-height:100%;object-fit:contain;border:1px solid var(--line)}
+.app-viewer-x{position:absolute;top:16px;right:16px;width:36px;height:36px;font-size:18px;background:var(--surface);cursor:pointer}
+
+.app-attach{display:inline-flex;align-items:center;justify-content:center;flex:none;width:48px;height:48px;border:1px solid var(--line-faint);color:var(--ink);cursor:pointer}
+.app-attach input{display:none}
+.app-attach:hover,.app-attach:focus-within{border-color:var(--accent);color:var(--accent)}
+.app-attach.is-full{opacity:.4;pointer-events:none}
+.app-tray{display:flex;flex-wrap:wrap;gap:8px}
+.app-tray[hidden]{display:none}
+.app-tray-item{position:relative;width:64px;height:64px;border:1px solid var(--line)}
+.app-tray-item img{width:100%;height:100%;object-fit:cover;display:block}
+.app-tray-item.is-busy img{opacity:.35}
+.app-tray-item i{position:absolute;inset:0;display:grid;place-items:center;font-style:normal;color:var(--accent)}
+.app-tray-x{position:absolute;top:-8px;right:-8px;width:22px;height:22px;padding:0;border:1px solid var(--line);background:var(--surface);color:var(--ink);font:12px/1 var(--font-mono);cursor:pointer}
+
+.app-req-page{max-width:960px;width:100%;margin:0 auto}
+.app-req-head{display:flex;justify-content:space-between;align-items:flex-end;gap:16px;flex-wrap:wrap;margin-bottom:16px}
+.app-req-head .lft-label,.app-back{display:inline-flex;gap:6px;align-items:center}
+.app-back{color:var(--accent);text-decoration:none;margin-bottom:16px}
+.app-req-head .lft-btn{display:inline-flex;gap:8px;align-items:center}
+.app-req-list{list-style:none;margin:16px 0 0;padding:0;display:grid;gap:10px}
+.app-req{display:grid;gap:6px;padding:14px 16px;border:1px solid var(--line-faint);background:var(--surface);color:var(--ink);text-decoration:none}
+.app-req:hover,.app-req:focus-visible{border-color:var(--accent);outline:0}
+.app-req-top{display:flex;flex-wrap:wrap;align-items:center;gap:8px;margin:0}
+.app-req-top time,.app-req-top>.lft-label{margin-left:auto;color:var(--muted)}
+.app-req-title{font:600 16px/22px var(--font-sans)}
+.app-req-meta{color:var(--muted)}
+.app-req-last{font:400 14px/20px var(--font-sans);color:var(--muted);overflow:hidden;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical}
+.app-req-last b{color:var(--accent);font-weight:500}
+.app-req-count{display:inline-flex;align-items:center;gap:4px;color:var(--muted)}
+.app-req-count .lft-icon+*{margin-left:2px}
+.app-req-card{display:grid;gap:12px;padding:16px;border:1px solid var(--line);background:var(--surface)}
+.app-req-card .fp-title{margin:0}
+.app-req-facts{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:10px;margin:0}
+.app-req-facts div{display:grid;gap:4px}
+.app-req-facts dd{margin:0;font:400 15px/20px var(--font-sans)}
+.app-req-detail{padding-bottom:0}
+.app-req-rejected{display:flex;align-items:center;gap:6px;color:var(--alarm,#ff3b3b)}
+.app-steps{list-style:none;margin:0;padding:0;display:grid;grid-template-columns:repeat(5,1fr);gap:4px}
+.app-steps li{display:grid;gap:6px}
+.app-steps i{display:block;height:6px;background:var(--line-faint)}
+.app-steps .is-done i{background:var(--accent);opacity:.5}
+.app-steps .is-now i{background:var(--accent)}
+.app-steps .lft-label{color:var(--muted);font-size:10px}
+.app-steps .is-now .lft-label{color:var(--accent)}
+.app-status-pick{display:flex;flex-wrap:wrap;align-items:center;gap:8px}
+.app-status-pick .fp-chip{height:32px;padding:0 10px}
+.app-status-pick .fp-chip[disabled]{opacity:.35}
+.app-got{display:inline-flex;gap:8px;align-items:center;justify-content:center}
+.app-compose .app-ai-row{align-items:flex-end}
+#req-compose{display:contents}
+
+.app-req-form{max-width:640px}
+.app-req-form .lft-window__body{display:grid;gap:16px}
+.app-field{display:grid;gap:6px}
+.app-field-row{display:flex;gap:12px;align-items:flex-end;flex-wrap:wrap}
+.app-field-row .app-field{flex:1;min-width:140px}
+.app-urgent{height:48px;display:inline-flex;gap:6px;align-items:center}
+.app-urgent[aria-pressed="true"]{border-color:var(--alarm,#ff3b3b);color:var(--alarm,#ff3b3b)}
+.app-req-form .lft-btn[type="submit"]{display:inline-flex;gap:8px;align-items:center;justify-content:center}
+.app-req-form .app-select{min-width:0}
+
+@media (max-width:1023px){
+  .app-msgs{padding:12px 16px 16px}
+  .app-chat-head{padding:16px 16px 0}
+  .app-msg-bubble{max-width:92%}
+  .app-req-head .lft-btn{width:100%;justify-content:center}
+  .app-steps .lft-label{font-size:9px;letter-spacing:.02em}
+  .app-attach{width:44px;height:44px}
+  .app-tabs{grid-template-columns:repeat(5,1fr)}
+  .app-tabs a{font-size:9px;letter-spacing:.03em}
+}
+@media (prefers-reduced-motion:no-preference){
+  .app-msg{animation:app-in .22s ease-out both}
+  .app-viewer{animation:app-fade .16s ease-out both}
+}
