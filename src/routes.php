@@ -3,15 +3,19 @@
 declare(strict_types=1);
 
 use App\Admin\AdminRepository;
+use App\Auth\IdentityResolver;
 use App\Controller\AdminController;
 use App\Controller\CatalogController;
 use App\Controller\CodeController;
 use App\Controller\DiagnoseController;
 use App\Controller\HealthController;
+use App\Controller\JournalController;
 use App\Controller\SearchController;
 use App\Diagnosis\CandidateFinder;
 use App\Diagnosis\Diagnoser;
 use App\Http\AdminAuth;
+use App\Journal\JournalDrafter;
+use App\Journal\JournalRepository;
 use App\Http\Router;
 use App\Repository\CatalogRepository;
 use App\Repository\FaultCodeRepository;
@@ -60,6 +64,21 @@ return static function (Router $router, ?Services $services = null): void {
         ),
         new Diagnoser($services->languageModel()),
     ))->diagnose($r));
+
+    // Личный журнал механика: вход по аккаунту Tailscale
+    $journal = static fn (): JournalController => new JournalController(
+        $services->identity(),
+        new JournalRepository($services->pdo()),
+        new JournalDrafter($services->languageModel()),
+    );
+    $router->get('/api/me', static fn ($r) => $journal()->me($r));
+    $router->post('/api/me/link', static fn ($r) => $journal()->link($r));
+    $router->get('/api/mechanics', static fn ($r) => $journal()->mechanics($r));
+    $router->get('/api/lifts', static fn ($r) => $journal()->lifts($r));
+    $router->post('/api/journal/draft', static fn ($r) => $journal()->draft($r));
+    $router->get('/api/journal', static fn ($r) => $journal()->index($r));
+    $router->post('/api/journal', static fn ($r) => $journal()->create($r));
+    $router->delete('/api/journal/{id}', static fn ($r) => $journal()->delete($r));
 
     // Админ-API: каждый обработчик закрыт токеном
     $admin = static fn (): AdminController => new AdminController(new AdminRepository($services->pdo()), $services->searchIndex());

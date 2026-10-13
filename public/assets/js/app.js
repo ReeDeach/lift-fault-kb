@@ -602,9 +602,9 @@
         );
     }
 
-    // ---------- Экран «Журнал» ----------
+    // ---------- Экран «Общая база» (мастер): обезличенные случаи из базы знаний ----------
 
-    function renderJournal(params, token) {
+    function renderBase(params, token) {
         var model = params.model || '';
         $view.html(
             '<form class="fp-search app-search" id="journal-form" role="search">'
@@ -612,6 +612,9 @@
             + '<input class="app-input" id="journal-filter" autocomplete="off" placeholder="Фильтр: код или слово из записи" aria-label="Фильтр журнала" value="' + esc(params.q || '') + '"></label>'
             + '<label class="fp-chip app-select">' + icon('factory')
             + '<select name="model" id="journal-model" aria-label="Модель лифта"><option value="">Загрузка моделей…</option></select></label>'
+            + '<div class="app-types app-journal-tabs" role="tablist">'
+            + '<a class="fp-chip app-type" aria-pressed="false" href="#/journal">Журналы механиков</a>'
+            + '<a class="fp-chip app-type" aria-pressed="true" href="#/base">Общая база</a></div>'
             + '</form>'
             + '<div id="journal-body">' + loading('Собираем случаи из базы') + '</div>'
         );
@@ -823,7 +826,7 @@
     // описания ничего бы не значило.
     var AI_MAX_LENGTH = 2000;
     var AI_STORE = 'lft:ai';
-    var ai = { thread: [], messages: [], code: '', model: null };
+    var ai = { thread: [], messages: [], answers: [], code: '', model: null };
 
     // Браузер на телефоне перезагружает вкладку после возврата из другого приложения,
     // поэтому переписка хранится в sessionStorage: живёт, пока открыта вкладка
@@ -837,6 +840,7 @@
         var stored = JSON.parse(sessionStorage.getItem(AI_STORE) || 'null');
         if (stored && $.isArray(stored.thread) && $.isArray(stored.messages)) {
             ai = $.extend(ai, stored);
+            ai.answers = $.isArray(stored.answers) ? stored.answers : [];
         }
     } catch (e) { /* нет доступа к хранилищу */ }
 
@@ -862,7 +866,10 @@
             + '<div class="app-ai-bar">'
             + '<button type="button" class="app-ai-toggle lft-label" id="ai-toggle" aria-expanded="false" aria-controls="ai-opts">'
             + icon('settings', 'lft-icon--12') + '<span id="ai-summary"></span></button>'
-            + '<button type="button" class="app-ai-new lft-label" id="ai-new" hidden>' + icon('close', 'lft-icon--12') + 'Новый разбор</button>'
+            + '<span class="app-ai-actions">'
+            + '<button type="button" class="app-ai-new lft-label" id="ai-save" hidden>' + icon('journal', 'lft-icon--12') + 'В журнал</button>'
+            + '<button type="button" class="app-ai-new lft-label" id="ai-new" hidden>' + icon('close', 'lft-icon--12') + 'Новый</button>'
+            + '</span>'
             + '</div>'
             + '<div class="app-ai-opts" id="ai-opts">'
             + '<label class="fp-chip app-ai-code">' + icon('code')
@@ -911,7 +918,7 @@
         var modelText = model.data('name') ? model.data('maker') + ' · ' + model.data('name') : 'все модели';
         var code = $.trim($('#ai-code').val());
         $('#ai-summary').text((code ? 'Код ' + code : 'Без кода') + ' · ' + modelText);
-        $('#ai-new').prop('hidden', !ai.messages.length);
+        $('#ai-new, #ai-save').prop('hidden', !ai.messages.length);
         $('#ai-text').attr('placeholder', ai.messages.length ? 'Уточнение или ответ на вопрос' : 'Что происходит с лифтом');
     }
 
@@ -969,6 +976,14 @@
             var answer = aiAnswerHtml(data);
             ai.thread.push(question, answer);
             ai.messages.push(text);
+            ai.answers.push({
+                summary: data.ai.summary || '',
+                codes: $.map(data.codes, function (c) { return c.code; }),
+                causes: $.map(data.causes.slice(0, 5), function (c) {
+                    return { title: c.title, confidence: c.confidence, first_check: c.first_check };
+                }),
+                questions: data.ai.questions || []
+            });
             saveAi();
             var $answer = $(answer);
             $pending.replaceWith($answer);
@@ -1076,20 +1091,418 @@
         return html + '</ul>';
     }
 
+    // ---------- Вход: кто вы и в какой роли ----------
+    // Пользователя определяет сервер по аккаунту Tailscale. Роль (механик или мастер) — режим
+    // интерфейса: права мастера сервер всё равно проверяет по своему списку.
+
+    var ROLE_STORE = 'lft:role';
+    var STATUSES = {
+        resolved: { text: 'устранено', cls: 'lft-badge--ok' },
+        monitoring: { text: 'наблюдать', cls: 'lft-badge--warn' },
+        repeat_visit: { text: 'повторный выезд', cls: 'lft-badge--alarm' },
+        unresolved: { text: 'не устранено', cls: 'lft-badge--alarm' }
+    };
+    var session = { me: null, role: null, error: null };
+    var liftsRequest = null;
+
+    function storedRole(value) {
+        try {
+            if (value === undefined) {
+                return localStorage.getItem(ROLE_STORE);
+            }
+            if (value === null) {
+                localStorage.removeItem(ROLE_STORE);
+            } else {
+                localStorage.setItem(ROLE_STORE, value);
+            }
+        } catch (e) { /* без хранилища роль спросят при следующем открытии */ }
+        return null;
+    }
+
+    function startSession() {
+        api('/api/me').then(function (me) {
+            session.me = me;
+            var role = storedRole();
+            if ((role === 'master' && !me.is_master) || (role === 'mechanic' && !me.mechanic)) {
+                role = null;
+            }
+            session.role = role;
+            drawUser();
+            render();
+        }, function (error) {
+            session.error = error;
+            render();
+        });
+    }
+
+    function isMaster() {
+        return session.role === 'master';
+    }
+
+    function drawUser() {
+        var $u = $('#app-user');
+        if (!session.role) {
+            $u.prop('hidden', true);
+            return;
+        }
+        var name = isMaster() ? 'мастер' : (session.me.mechanic ? session.me.mechanic.name : 'механик');
+        $u.prop('hidden', false).html(icon(isMaster() ? 'building' : 'settings', 'lft-icon--12') + '<span>' + esc(name) + '</span>');
+    }
+
+    function renderLogin() {
+        if (session.error) {
+            $view.html('<div class="app-pad"><p class="lft-label app-bad">Вход</p><p class="fp-title">Откройте через Tailscale</p>'
+                + '<p class="fp-desc">' + esc(session.error.message) + '</p></div>');
+            return;
+        }
+        if (!session.me) {
+            $view.html(loading('Вход'));
+            return;
+        }
+        var me = session.me;
+        $view.html(
+            '<div class="nf app-login">'
+            + '<img class="app-login-mark" src="/assets/img/lft-mark.svg" alt="">'
+            + '<p class="nf-word">Кто вы?</p>'
+            + '<p class="lft-label">Аккаунт: ' + esc(me.login) + '</p>'
+            + '<div class="app-login-actions">'
+            + '<button type="button" class="lft-btn" data-login="mechanic">' + icon('settings') + 'Войти как механик</button>'
+            + '<button type="button" class="lft-btn lft-btn--ghost" data-login="master">' + icon('building') + 'Войти как мастер</button>'
+            + '</div>'
+            + '<div id="login-more"></div>'
+            + '</div>'
+        );
+    }
+
+    function pickMechanicHtml(mechanics) {
+        var html = '<div class="lft-window app-login-pick"><div class="lft-window__bar"><span class="lft-label">Выберите себя</span>'
+            + '<span class="lft-window__x" aria-hidden="true">×</span></div><div class="lft-window__body">'
+            + '<p class="app-text app-muted">Один раз: аккаунт привяжется к механику, и в журнале будут ваши лифты.</p>';
+        $.each(mechanics || [], function (_, m) {
+            html += '<button type="button" class="app-pick-row" data-mechanic="' + m.id + '"' + (m.linked ? ' disabled' : '') + '>'
+                + '<span class="app-pick-main">' + esc(m.name) + '</span>'
+                + '<span class="lft-label">' + (m.linked ? 'уже привязан' : m.lifts + ' ' + plural(m.lifts, 'лифт', 'лифта', 'лифтов')) + '</span></button>';
+        });
+        return html + '</div></div>';
+    }
+
+    function loadLifts() {
+        if (!liftsRequest) {
+            liftsRequest = api('/api/lifts').then(function (data) {
+                return data.items;
+            });
+            liftsRequest.fail(function () {
+                liftsRequest = null;
+            });
+        }
+        return liftsRequest;
+    }
+
+    function placeName(p) {
+        return p.address + (p.object_name ? ' · ' + p.object_name : '');
+    }
+
+    function liftName(lift) {
+        return lift.address + (lift.object_name ? ' · ' + lift.object_name : '') + ', лифт ' + lift.lift_no;
+    }
+
+    function formatDateTime(value) {
+        var m = /^(\d{4})-(\d{2})-(\d{2})[ T](\d{2}):(\d{2})/.exec(value || '');
+        return m ? m[3] + '.' + m[2] + '.' + m[1] + ' ' + m[4] + ':' + m[5] : esc(value);
+    }
+
+    // ---------- Экран «Журнал» ----------
+
+    function renderJournal(params, token) {
+        var master = isMaster();
+        var mechanic = master ? (params.mechanic || '') : '';
+        var tabs = '';
+        if (master) {
+            tabs = '<div class="app-types app-journal-tabs" role="tablist">'
+                + '<a class="fp-chip app-type" aria-pressed="true" href="#/journal">Журналы механиков</a>'
+                + '<a class="fp-chip app-type" aria-pressed="false" href="#/base">Общая база</a></div>';
+        }
+
+        $view.html(
+            '<form class="fp-search app-search" id="pj-form" role="search">'
+            + '<label class="fp-field">' + icon('search')
+            + '<input class="app-input" id="pj-q" type="search" value="' + esc(params.q || '') + '" autocomplete="off" '
+            + 'placeholder="Адрес, код или слово из записи" aria-label="Поиск по журналу"></label>'
+            + (master ? '<label class="fp-chip app-select">' + icon('settings')
+                + '<select id="pj-mechanic" aria-label="Механик"><option value="">Все механики</option></select></label>' : '')
+            + '<button class="lft-btn" type="submit">Найти</button>'
+            + tabs
+            + '</form>'
+            + '<div id="pj-body">' + loading('Загружаем журнал') + '</div>'
+        );
+
+        if (master) {
+            api('/api/mechanics').then(function (data) {
+                if (token !== renderToken) {
+                    return;
+                }
+                var html = '<option value="">Все механики</option>';
+                $.each(data.items, function (_, m) {
+                    html += '<option value="' + m.id + '"' + (String(m.id) === String(mechanic) ? ' selected' : '') + '>' + esc(m.name) + '</option>';
+                });
+                $('#pj-mechanic').html(html).trigger('lft:refresh');
+            });
+        }
+
+        api('/api/journal', { q: params.q || null, mechanic_id: mechanic || null, lift_id: params.lift || null, limit: 100 }).then(function (data) {
+            if (token === renderToken) {
+                drawPersonalJournal(data, master, params);
+            }
+        }, function (error) {
+            if (token === renderToken) {
+                $('#pj-body').html('<div class="app-pad">' + errorWindow(error, 'Журнал') + '</div>');
+            }
+        });
+    }
+
+    function drawPersonalJournal(data, master, params) {
+        var $body = $('#pj-body');
+        if (!data.items.length) {
+            $body.html('<div class="app-pad"><p class="lft-label">Журнал</p><p class="fp-title">' + (params.q || params.lift ? 'Ничего не нашлось' : 'Записей пока нет') + '</p>'
+                + '<p class="fp-desc">Записи появляются из ИИ-диагностики: разберите неисправность и нажмите «Сохранить в журнал» — '
+                + 'адрес и лифт выбираются в два касания, текст записи соберётся сам.</p>'
+                + '<p class="app-nf-back"><a class="lft-btn" href="#/ai">' + icon('chip') + ' Открыть ИИ-диагностику</a></p></div>');
+            return;
+        }
+
+        var html = '<div class="fp-cols app-journal-cols"><section class="app-pj-list">';
+        if (params.lift) {
+            html += '<p class="lft-label">Один лифт · <a class="app-link" href="' + hashFor('journal', { mechanic: params.mechanic, q: params.q }) + '">показать все</a></p>';
+        }
+        html += '<p class="lft-label">Записей: ' + data.total + '</p>';
+
+        var group = null;
+        $.each(data.items, function (_, e) {
+            var groupKey = master && !params.mechanic ? (e.lift.mechanic ? e.lift.mechanic.name : 'Без механика') : null;
+            if (groupKey !== group && groupKey !== null) {
+                group = groupKey;
+                html += '<h2 class="fp-h app-pj-group">' + esc(group) + '</h2>';
+            }
+            html += entryHtml(e, master);
+        });
+        html += '</section><section class="fp-side">' + statsHtml(data.stats, params) + '</section></div>';
+        $body.html(html);
+    }
+
+    function entryHtml(e, master) {
+        var status = STATUSES[e.status] || { text: e.status, cls: '' };
+        var mine = session.me.mechanic && e.author && e.author.id === session.me.mechanic.id;
+        var details = '';
+        $.each([['Что было', e.symptoms], ['Причина', e.cause], ['Что сделано', e.work_done], ['Дальше', e.recommendation]], function (_, f) {
+            if (f[1]) {
+                details += '<div class="app-pj-field"><span class="lft-label">' + f[0] + '</span><p>' + esc(f[1]) + '</p></div>';
+            }
+        });
+        return '<article class="app-pj-entry">'
+            + '<div class="app-pj-top"><span class="lft-label">' + formatDateTime(e.occurred_at) + '</span>'
+            + '<span class="lft-badge ' + status.cls + '">' + esc(status.text) + '</span></div>'
+            + '<a class="app-pj-lift" href="' + hashFor('journal', { lift: e.lift.id, mechanic: master ? currentRoute().params.mechanic : null }) + '">'
+            + icon('building', 'lft-icon--12') + esc(liftName(e.lift)) + '</a>'
+            + '<p class="app-pj-title">' + (e.codes ? '<b class="app-pj-codes">' + esc(e.codes) + '</b>' : '') + esc(e.title) + '</p>'
+            + (details ? '<details class="app-fix"><summary>' + icon('journal', 'lft-icon--12') + '<span>Подробно</span><span class="lft-label">'
+                + (e.source === 'ai' ? 'из ИИ' : 'вручную') + '</span></summary><div class="app-fix-body">' + details
+                + '<p class="lft-label">Записал: ' + esc(e.author ? e.author.name : 'мастер') + '</p>'
+                + (mine || master ? '<button type="button" class="lft-btn lft-btn--ghost app-pj-del" data-entry="' + e.id + '">Удалить запись</button>' : '')
+                + '</div></details>' : '')
+            + '</article>';
+    }
+
+    function statsHtml(stats, params) {
+        var html = '<div><h2 class="fp-h app-h-icon">' + icon('fault') + 'Повторы за 90 дней</h2>';
+        if (!stats.lifts.length) {
+            return html + '<p class="app-empty">Пока пусто.</p></div>';
+        }
+        var max = stats.lifts[0].entries;
+        html += '<div class="jr-bars">';
+        $.each(stats.lifts.slice(0, 8), function (_, l) {
+            html += '<a class="jr-bar app-pj-bar" href="' + hashFor('journal', { lift: l.lift_id, mechanic: params.mechanic }) + '" title="' + esc(liftName(l)) + '">'
+                + '<b>' + esc(l.address + (l.object_name ? ' ' + l.object_name : '')) + ' · ' + l.lift_no + '</b>'
+                + '<i' + (l.open ? '' : ' class="m"') + ' style="width:' + Math.max(8, Math.round(l.entries / max * 100)) + '%"></i><span>' + l.entries + '</span></a>';
+        });
+        html += '</div><p class="lft-label app-note">Оранжевым — есть незакрытые: повторный выезд или не устранено</p></div>';
+        if (stats.codes.length) {
+            html += '<div><h2 class="fp-h">Частые коды</h2><div class="ch-src">';
+            $.each(stats.codes.slice(0, 10), function (_, c) {
+                html += '<a href="' + hashFor('codes', { code: c.code }) + '">' + esc(c.code) + ' · ' + c.entries + '</a>';
+            });
+            html += '</div></div>';
+        }
+        return html;
+    }
+
+    // ---------- Сохранение разбора из ИИ в журнал ----------
+    // Механик выбирает, чей лифт, адрес и номер лифта, а текст записи собирается сам из переписки.
+
+    var saving = { mechanic: null, place: null, lift: null, draft: null, draftRequest: null };
+
+    function openSaveSheet() {
+        if (!ai.messages.length) {
+            return;
+        }
+        saving = { mechanic: session.me.mechanic ? session.me.mechanic.id : null, place: null, lift: null, draft: null, draftRequest: null };
+        $('body').addClass('app-dd-lock').append('<div class="app-dd-backdrop app-sheet-backdrop"></div>'
+            + '<div class="app-sheet lft-window" role="dialog" aria-label="Сохранить в журнал"><div class="lft-window__bar">'
+            + '<span class="lft-label">' + icon('journal', 'lft-icon--12') + ' Сохранить в журнал</span>'
+            + '<button type="button" class="lft-window__x app-sheet-close" aria-label="Закрыть">×</button></div>'
+            + '<div class="lft-window__body" id="save-body">' + loading('Загружаем лифты') + '</div></div>');
+
+        // Черновик готовится сразу, пока механик выбирает лифт
+        saving.draftRequest = apiPost('/api/journal/draft', { messages: ai.messages, answers: ai.answers });
+        loadLifts().then(drawSaveSheet, function (error) {
+            $('#save-body').html(errorWindow(error, 'Лифты'));
+        });
+    }
+
+    function closeSaveSheet() {
+        $('.app-sheet, .app-sheet-backdrop').remove();
+        $('body').removeClass('app-dd-lock');
+    }
+
+    function drawSaveSheet(places) {
+        api('/api/mechanics').then(function (data) {
+            var html = '<div class="app-step"><span class="lft-label">1 · Чей лифт</span><div class="app-types">';
+            $.each(data.items, function (_, m) {
+                html += '<button type="button" class="fp-chip app-type" data-save-mechanic="' + m.id + '" aria-pressed="' + (m.id === saving.mechanic) + '">' + esc(m.name) + '</button>';
+            });
+            html += '</div></div><div class="app-step" id="save-place"></div><div class="app-step" id="save-lift"></div><div id="save-draft"></div>';
+            $('#save-body').html(html);
+            if (saving.mechanic === null && data.items.length) {
+                saving.mechanic = data.items[0].id;
+                $('[data-save-mechanic="' + saving.mechanic + '"]').attr('aria-pressed', 'true');
+            }
+            drawPlaces(places);
+        });
+    }
+
+    function drawPlaces(places) {
+        var mine = $.grep(places, function (p) { return p.mechanic_id === saving.mechanic; });
+        var html = '<span class="lft-label">2 · Адрес</span>'
+            + '<label class="fp-field app-save-filter">' + icon('search') + '<input class="app-input" id="save-filter" autocomplete="off" placeholder="Начните вводить адрес"></label>'
+            + '<div class="app-places" id="save-places">';
+        $.each(mine, function (i, p) {
+            html += '<button type="button" class="app-pick-row" data-place="' + i + '" data-text="' + esc(placeName(p).toLowerCase()) + '">'
+                + '<span class="app-pick-main">' + esc(placeName(p)) + '</span>'
+                + '<span class="lft-label">' + p.lifts.length + ' ' + plural(p.lifts.length, 'лифт', 'лифта', 'лифтов') + '</span></button>';
+        });
+        $('#save-place').html(html + '</div>').data('places', mine);
+        $('#save-lift, #save-draft').empty();
+    }
+
+    function choosePlace(place) {
+        saving.place = place;
+        $('#save-places .app-pick-row').attr('aria-pressed', 'false');
+        var html = '<span class="lft-label">3 · Лифт на адресе ' + esc(placeName(place)) + '</span><div class="app-liftnos">';
+        $.each(place.lifts, function (_, l) {
+            html += '<button type="button" class="app-liftno" data-save-lift="' + l.id + '" aria-pressed="false">' + l.lift_no
+                + (l.entries ? '<small>' + l.entries + '</small>' : '') + '</button>';
+        });
+        $('#save-lift').html(html + '</div>');
+        if (place.lifts.length === 1) {
+            chooseLift(place.lifts[0].id);
+        } else {
+            $('#save-lift')[0].scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+        }
+    }
+
+    function chooseLift(id) {
+        saving.lift = id;
+        $('.app-liftno').attr('aria-pressed', 'false').filter('[data-save-lift="' + id + '"]').attr('aria-pressed', 'true');
+        $('#save-draft').html(loading('Собираем запись из переписки'));
+        saving.draftRequest.then(function (result) {
+            saving.draft = result;
+            drawDraft(result);
+        }, function () {
+            drawDraft({ draft: { title: '', status: 'monitoring' }, source: 'template' });
+        });
+    }
+
+    function drawDraft(result) {
+        var d = result.draft;
+        var now = new Date();
+        var pad = function (n) { return (n < 10 ? '0' : '') + n; };
+        var local = now.getFullYear() + '-' + pad(now.getMonth() + 1) + '-' + pad(now.getDate()) + 'T' + pad(now.getHours()) + ':' + pad(now.getMinutes());
+        var statusChips = '';
+        $.each(STATUSES, function (key, s) {
+            statusChips += '<button type="button" class="fp-chip app-type" data-save-status="' + key + '" aria-pressed="' + (d.status === key) + '">' + esc(s.text) + '</button>';
+        });
+        var field = function (name, label, value, rows) {
+            return '<label class="app-draft-field"><span class="lft-label">' + label + '</span>'
+                + '<textarea class="app-draft-input" name="' + name + '" rows="' + rows + '">' + esc(value || '') + '</textarea></label>';
+        };
+        $('#save-draft').html(
+            '<div class="app-step app-draft">'
+            + '<span class="lft-label">4 · Запись' + (result.source === 'ai' ? ' · собрана ИИ, проверьте' : ' · по шаблону') + '</span>'
+            + '<label class="app-draft-field"><span class="lft-label">Коды</span><input class="app-draft-input" name="codes" value="' + esc(d.codes || '') + '" autocapitalize="characters" autocorrect="off" spellcheck="false"></label>'
+            + field('title', 'Суть', d.title, 2)
+            + field('symptoms', 'Что было', d.symptoms, 3)
+            + field('cause', 'Причина', d.cause, 2)
+            + field('work_done', 'Что сделано', d.work_done, 2)
+            + field('recommendation', 'Дальше', d.recommendation, 2)
+            + '<div class="app-draft-field"><span class="lft-label">Итог</span><div class="app-types">' + statusChips + '</div></div>'
+            + '<label class="app-draft-field"><span class="lft-label">Когда</span><input class="app-draft-input" type="datetime-local" name="occurred_at" value="' + local + '"></label>'
+            + '<p class="app-field-error lft-label" id="save-error" hidden></p>'
+            + '<button type="button" class="lft-btn app-save-btn" id="save-submit">' + icon('ok') + ' Сохранить запись</button>'
+            + '</div>'
+        );
+        $('#save-draft textarea').each(function () {
+            growTextarea(this);
+        });
+        $('#save-draft')[0].scrollIntoView({ block: 'start', behavior: 'smooth' });
+    }
+
+    function submitEntry() {
+        var body = { lift_id: saving.lift, source: saving.draft && saving.draft.source === 'ai' ? 'ai' : 'manual' };
+        $('#save-draft .app-draft-input').each(function () {
+            body[this.name] = $.trim($(this).val());
+        });
+        body.status = $('[data-save-status][aria-pressed="true"]').data('save-status') || 'monitoring';
+        body.chat = $.map(ai.messages, function (m, i) {
+            var a = ai.answers[i];
+            return 'Механик: ' + m + (a && a.summary ? '\nИИ: ' + a.summary : '');
+        }).join('\n\n');
+
+        $('#save-submit').prop('disabled', true);
+        apiPost('/api/journal', body).then(function (data) {
+            liftsRequest = null;
+            $('.app-sheet .lft-window__body').html(
+                '<p class="fp-title">Записано</p>'
+                + '<p class="app-text">' + esc(liftName(data.item.lift)) + '</p>'
+                + '<p class="app-text app-muted">' + esc(data.item.title) + '</p>'
+                + '<div class="app-login-actions"><a class="lft-btn" href="' + hashFor('journal', { lift: data.item.lift.id }) + '" data-close-sheet>Открыть журнал лифта</a>'
+                + '<button type="button" class="lft-btn lft-btn--ghost" id="save-new">Новый разбор</button></div>'
+            );
+        }, function (error) {
+            $('#save-submit').prop('disabled', false);
+            $('#save-error').text($.map(error.fields || {}, function (t, k) { return k + ': ' + t; }).join(' · ') || error.message).prop('hidden', false);
+        });
+    }
+
     // ---------- Маршрутизация и события ----------
 
     function render() {
         var route = currentRoute();
         var token = ++renderToken;
-        var page = { codes: true, search: true, journal: true, ai: true }[route.page] ? route.page : 'codes';
+        var page = { codes: true, search: true, journal: true, base: true, ai: true }[route.page] ? route.page : 'codes';
+        if (page === 'base' && !isMaster()) {
+            page = 'journal';
+        }
 
-        setActiveNav(page);
+        setActiveNav(page === 'base' ? 'journal' : page);
         document.title = 'Lift Fault Terminal — база неисправностей лифтов';
         window.scrollTo(0, 0);
 
         closeDropdown(false);
-        if (page === 'journal') {
+        if (!session.role) {
+            renderLogin();
+        } else if (page === 'journal') {
             renderJournal(route.params, token);
+        } else if (page === 'base') {
+            renderBase(route.params, token);
         } else if (page === 'search') {
             renderSearch(route.params, token);
         } else if (page === 'ai') {
@@ -1103,6 +1516,97 @@
     }
 
     $(document)
+        .on('click', '[data-login]', function () {
+            var role = $(this).data('login');
+            if (role === 'master') {
+                if (!session.me.is_master) {
+                    $('#login-more').html('<p class="lft-label app-bad">У аккаунта ' + esc(session.me.login) + ' нет прав мастера</p>');
+                    return;
+                }
+                session.role = 'master';
+            } else if (session.me.mechanic) {
+                session.role = 'mechanic';
+            } else {
+                $('#login-more').html(pickMechanicHtml(session.me.mechanics));
+                return;
+            }
+            storedRole(session.role);
+            drawUser();
+            render();
+        })
+        .on('click', '[data-mechanic]', function () {
+            apiPost('/api/me/link', { mechanic_id: Number($(this).data('mechanic')) }).then(function (me) {
+                session.me = me;
+                session.role = 'mechanic';
+                storedRole('mechanic');
+                drawUser();
+                render();
+            }, function (error) {
+                $('#login-more').prepend('<p class="lft-label app-bad">' + esc(error.message) + '</p>');
+            });
+        })
+        .on('click', '#app-user', function () {
+            session.role = null;
+            storedRole(null);
+            drawUser();
+            render();
+        })
+        .on('submit', '#pj-form', function (e) {
+            e.preventDefault();
+            go('journal', { q: $.trim($('#pj-q').val()), mechanic: $('#pj-mechanic').val() });
+        })
+        .on('change', '#pj-mechanic', function () {
+            go('journal', { q: $.trim($('#pj-q').val()), mechanic: $(this).val() });
+        })
+        .on('click', '.app-pj-del', function () {
+            if (!window.confirm('Удалить запись из журнала?')) {
+                return;
+            }
+            $.ajax({ url: '/api/journal/' + Number($(this).data('entry')), method: 'DELETE' }).then(render, function () {
+                window.alert('Не удалось удалить запись');
+            });
+        })
+        .on('click', '#ai-save', openSaveSheet)
+        .on('click', '.app-sheet-close, .app-sheet-backdrop, [data-close-sheet]', closeSaveSheet)
+        .on('click', '[data-save-mechanic]', function () {
+            saving.mechanic = Number($(this).data('save-mechanic'));
+            $('[data-save-mechanic]').attr('aria-pressed', 'false');
+            $(this).attr('aria-pressed', 'true');
+            loadLifts().then(drawPlaces);
+        })
+        .on('input', '#save-filter', function () {
+            var q = $.trim($(this).val()).toLowerCase();
+            $('#save-places .app-pick-row').each(function () {
+                $(this).prop('hidden', q !== '' && String($(this).data('text')).indexOf(q) === -1);
+            });
+        })
+        .on('click', '[data-place]', function () {
+            $('#save-places .app-pick-row').attr('aria-pressed', 'false');
+            $(this).attr('aria-pressed', 'true');
+            choosePlace($('#save-place').data('places')[Number($(this).data('place'))]);
+        })
+        .on('click', '[data-save-lift]', function () {
+            chooseLift(Number($(this).data('save-lift')));
+        })
+        .on('click', '[data-save-status]', function () {
+            $('[data-save-status]').attr('aria-pressed', 'false');
+            $(this).attr('aria-pressed', 'true');
+        })
+        .on('input', '.app-draft-input', function () {
+            if (this.tagName === 'TEXTAREA') {
+                growTextarea(this);
+            }
+        })
+        .on('click', '#save-submit', submitEntry)
+        .on('click', '#save-new', function () {
+            closeSaveSheet();
+            $('#ai-new').trigger('click');
+        })
+        .on('keydown', function (e) {
+            if (e.key === 'Escape' && $('.app-sheet').length) {
+                closeSaveSheet();
+            }
+        })
         .on('click', '.app-dd-btn', function () {
             if ($(this).attr('aria-expanded') === 'true') {
                 closeDropdown(true);
@@ -1169,7 +1673,7 @@
         })
         .on('input', '#journal-filter', applyJournalFilter)
         .on('change', '#journal-model', function () {
-            go('journal', { model: $(this).val() });
+            go('base', { model: $(this).val() });
         })
         .on('click', '[data-action="more"]', function () {
             $(this).prop('disabled', true).text('Загрузка…');
@@ -1232,6 +1736,7 @@
         .on('click', '#ai-new', function () {
             ai.thread = [];
             ai.messages = [];
+            ai.answers = [];
             saveAi();
             renderAi(renderToken);
             $view.find('.app-select select').each(function () {
@@ -1259,5 +1764,5 @@
     setInterval(tick, 30000);
     api('/api/health');
     $(window).on('hashchange', render);
-    render();
+    startSession();
 }(jQuery));
