@@ -6,6 +6,7 @@ namespace App\Support;
 
 use App\Ai\GeminiClient;
 use App\Ai\LanguageModel;
+use App\Auth\IdentityResolver;
 use App\Database\Connection;
 use App\Http\HttpException;
 use App\Search\Documents;
@@ -29,13 +30,33 @@ final class Services
      * @param (Closure(): PDO)|null $pdoFactory
      * @param (Closure(self): ?SearchIndex)|null $searchIndexFactory
      * @param (Closure(): ?LanguageModel)|null $languageModelFactory
+     * @param (Closure(PDO): IdentityResolver)|null $identityFactory
+     * @param (Closure(PDO): RateLimiter)|null $rateLimiterFactory
      */
     public function __construct(
         private readonly ?Closure $pdoFactory = null,
         private readonly ?string $adminToken = null,
         private readonly ?Closure $searchIndexFactory = null,
         private readonly ?Closure $languageModelFactory = null,
+        private readonly ?Closure $identityFactory = null,
+        private readonly ?Closure $rateLimiterFactory = null,
     ) {
+    }
+
+    /**
+     * Лимит запросов к ИИ. В тестах подменяется, чтобы счётчики не мешали прогонам.
+     */
+    public function rateLimiter(): RateLimiter
+    {
+        return $this->rateLimiterFactory !== null ? ($this->rateLimiterFactory)($this->pdo()) : RateLimiter::fromEnv($this->pdo());
+    }
+
+    /**
+     * Кто сделал запрос (аккаунт Tailscale). В тестах подменяется.
+     */
+    public function identity(): IdentityResolver
+    {
+        return $this->identityFactory !== null ? ($this->identityFactory)($this->pdo()) : IdentityResolver::fromEnv($this->pdo());
     }
 
     /**

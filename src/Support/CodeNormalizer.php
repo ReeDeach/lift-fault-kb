@@ -33,4 +33,31 @@ final class CodeNormalizer
     {
         return preg_match('/^[A-Za-z0-9._-]{1,32}$/', $code) === 1;
     }
+
+    public const MAX_CODES = 5;
+
+    public const LIST_RULE = 'Код: до 32 символов, буквы, цифры, точка, дефис и подчёркивание. '
+        . 'Несколько кодов (например, 44 C6) — через пробел или запятую, не больше ' . self::MAX_CODES;
+
+    /**
+     * Разбирает ввод с одним или несколькими кодами: «44 C6», «44, С6», «44/C6».
+     * На индикаторе УЛ код 44 часто идёт вместе с подсказкой C0–C9, и пишут их вместе.
+     *
+     * @return list<string>|null коды латиницей без повторов; null — есть некорректный код или их слишком много
+     */
+    public static function parseList(string $input): ?array
+    {
+        $parts = preg_split('/[\s,;\/+]+/u', trim($input), -1, PREG_SPLIT_NO_EMPTY) ?: [];
+        $codes = [];
+
+        foreach ($parts as $part) {
+            $code = self::toLatin($part);
+            if (!self::isValidCode($code)) {
+                return null;
+            }
+            $codes[strtoupper($code)] ??= $code;
+        }
+
+        return $codes === [] || count($codes) > self::MAX_CODES ? null : array_values($codes);
+    }
 }

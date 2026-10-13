@@ -27,11 +27,12 @@ final class SearchService
     /**
      * @param list<string> $kinds разделы из Documents::KINDS, пустой список — все
      * @param array{models: list<int>, controllers: list<int>}|null $owner коды только этих моделей и устройств
+     * @param float $share доля слов запроса, которая должна найтись (см. QueryBuilder::build)
      * @return array{items: list<array<string, mixed>>, total: int}
      */
-    public function search(string $query, array $kinds, ?array $owner, int $limit, int $offset): array
+    public function search(string $query, array $kinds, ?array $owner, int $limit, int $offset, float $share = 0.6): array
     {
-        $match = QueryBuilder::build($query);
+        $match = QueryBuilder::build($query, $share);
         if ($match === null) {
             return ['items' => [], 'total' => 0];
         }
@@ -59,7 +60,7 @@ final class SearchService
             . "HIGHLIGHT({{$highlight}, limit=0}, 'title') AS title_hl, "
             . "HIGHLIGHT({{$highlight}, limit=240, around=8}, 'body') AS snippet "
             . 'FROM ' . ManticoreIndex::TABLE . ' WHERE ' . implode(' AND ', $where)
-            . " ORDER BY score DESC, id ASC LIMIT $offset, $limit OPTION ranker=proximity_bm25, max_matches=" . ($offset + $limit)
+            . " ORDER BY score DESC, id ASC LIMIT $offset, $limit OPTION ranker=proximity_bm25, field_weights=(title=3, code=3, body=1), max_matches=" . ($offset + $limit)
         );
         ManticoreIndex::execute($stmt, $params);
         $hits = $stmt->fetchAll();

@@ -1,0 +1,66 @@
+# Демо-копия для показа: отдельная база с вымышленными данными, вход без аккаунта (DEMO_MODE=1).
+# Рабочая копия (docker-compose.yml) не затрагивается: другое имя проекта, свои тома и порт.
+#
+#   docker compose -f docker-compose.demo.yml up -d --build
+#   docker compose -f docker-compose.demo.yml exec php php bin/migrate.php migrate
+#   docker compose -f docker-compose.demo.yml exec php php bin/migrate.php seed
+#   docker compose -f docker-compose.demo.yml exec php php bin/demo-reset.php
+#   docker compose -f docker-compose.demo.yml exec php php bin/search.php rebuild
+#
+# Наружу демо выводится туннелем Cloudflare на http://localhost:8081.
+
+name: lift-demo
+
+services:
+  nginx:
+    image: nginx:1.27-alpine
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:8081:80"
+    volumes:
+      - ./:/var/www/html:ro
+      - ./docker/nginx/default.conf:/etc/nginx/conf.d/default.conf:ro
+    depends_on:
+      - php
+
+  php:
+    build:
+      context: ./docker/php
+    restart: unless-stopped
+    working_dir: /var/www/html
+    volumes:
+      - ./:/var/www/html
+      # Демо видит только свой .env: рабочие пароли и токены в демо не попадают
+      - ./.env.demo:/var/www/html/.env:ro
+    env_file:
+      - .env.demo
+    depends_on:
+      mysql:
+        condition: service_healthy
+
+  mysql:
+    image: mysql:8.0
+    restart: unless-stopped
+    command: --character-set-server=utf8mb4 --collation-server=utf8mb4_unicode_ci
+    environment:
+      MYSQL_DATABASE: ${DB_NAME:-lift_demo}
+      MYSQL_USER: ${DB_USER:-demo}
+      MYSQL_PASSWORD: ${DB_PASSWORD:?задайте в .env.demo}
+      MYSQL_ROOT_PASSWORD: ${DB_ROOT_PASSWORD:?задайте в .env.demo}
+    volumes:
+      - demo-mysql:/var/lib/mysql
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-p${DB_ROOT_PASSWORD}"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+  manticore:
+    image: manticoresearch/manticore:29.9.0
+    restart: unless-stopped
+    volumes:
+      - demo-manticore:/var/lib/manticore
+
+volumes:
+  demo-mysql:
+  demo-manticore:

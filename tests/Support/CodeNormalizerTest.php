@@ -47,4 +47,22 @@ final class CodeNormalizerTest extends TestCase
         $this->assertFalse(CodeNormalizer::isValidCode(str_repeat('1', 33)));
         $this->assertFalse(CodeNormalizer::isValidCode("1' OR '1'='1"));
     }
+
+    public function testCodeListAsWrittenFromIndicator(): void
+    {
+        $this->assertSame(['44', 'C6'], CodeNormalizer::parseList('44 С6'));
+        $this->assertSame(['44', 'C6'], CodeNormalizer::parseList(' 44, C6 '));
+        $this->assertSame(['44', 'C6'], CodeNormalizer::parseList('44/C6'));
+        $this->assertSame(['E36'], CodeNormalizer::parseList('Е36 e36'));
+        $this->assertSame(['45'], CodeNormalizer::parseList('45'));
+    }
+
+    public function testBadCodeListIsRejected(): void
+    {
+        $this->assertNull(CodeNormalizer::parseList(''));
+        $this->assertNull(CodeNormalizer::parseList('   '));
+        $this->assertNull(CodeNormalizer::parseList("1' OR '1'='1"));
+        $this->assertNull(CodeNormalizer::parseList('ОШ 44'));
+        $this->assertNull(CodeNormalizer::parseList('1 2 3 4 5 6'));
+    }
 }

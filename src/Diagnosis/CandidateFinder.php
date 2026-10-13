@@ -29,6 +29,9 @@ final class CandidateFinder
     private const SEARCH_HITS = 15;
     private const SEARCH_CODES = 5;
 
+    /** Описание длинное, и с симптомом совпадает лишь часть слов: хватает трети */
+    private const SEARCH_SHARE = 0.34;
+
     /** @var array<int, array<string, mixed>> */
     private array $causes = [];
 
@@ -44,14 +47,15 @@ final class CandidateFinder
 
     /**
      * @param list<int>|null $modelIds
+     * @param list<string>|null $codes коды с индикатора (например 44 и подсказка C6)
      * @param array{models: list<int>, controllers: list<int>}|null $owner
      * @return array{causes: list<array<string, mixed>>, codes: list<array<string, mixed>>, cases: list<array<string, mixed>>, search: string}
      */
-    public function find(string $description, ?array $modelIds, ?array $owner, ?string $code): array
+    public function find(string $description, ?array $modelIds, ?array $owner, ?array $codes): array
     {
         $this->causes = [];
 
-        $named = $code !== null ? $this->codes->search($modelIds, $code, 10, 0)['items'] : [];
+        $named = $codes !== null ? $this->codes->search($modelIds, $codes, 10, 0)['items'] : [];
         [$hits, $searchStatus] = $this->searchHits($description, $owner);
 
         // Коды из поиска по тексту нужны, только если пользователь код не назвал: иначе число
@@ -80,6 +84,9 @@ final class CandidateFinder
         }
 
         $this->addFromSearch($hits);
+        if ($owner !== null) {
+            $this->dropForeign($owner);
+        }
 
         $causes = array_values($this->causes);
         usort($causes, static fn (array $a, array $b): int => [$b['score'], $a['id']] <=> [$a['score'], $b['id']]);
@@ -115,13 +122,45 @@ final class CandidateFinder
 
         try {
             return [
-                ($this->search)()->search($description, ['codes', 'symptoms', 'causes'], $owner, self::SEARCH_HITS, 0)['items'],
+                ($this->search)()->search($description, ['codes', 'symptoms', 'causes'], $owner, self::SEARCH_HITS, 0, self::SEARCH_SHARE)['items'],
                 'ok',
             ];
         } catch (Throwable $e) {
             error_log('diagnose search: ' . $e->getMessage());
 
             return [[], 'unavailable'];
+        }
+    }
+
+    /**
+     * Убирает причины, которые привязаны только к кодам чужих устройств и моделей.
+     * Поиск по тексту не знает производителя: без этого для лифта Doppler всплывала бы
+     * причина из руководства на привод дверей Могилёвлифтмаша. Причины без привязки
+     * к кодам (общие, через симптомы) остаются.
+     *
+     * @param array{models: list<int>, controllers: list<int>} $owner
+     */
+    private function dropForeign(array $owner): void
+    {
+        if ($this->causes === []) {
+            return;
+        }
+
+        $ownCondition = 'fc.model_id IN (' . implode(',', $owner['models'] ?: [0]) . ')';
+        if ($owner['controllers'] !== []) {
+            $ownCondition .= ' OR fc.controller_id IN (' . implode(',', $owner['controllers']) . ')';
+        }
+
+        $in = implode(',', array_keys($this->causes));
+        $rows = $this->pdo->query(
+            "SELECT fcc.cause_id, MAX($ownCondition) AS own FROM fault_code_causes fcc "
+            . "JOIN fault_codes fc ON fc.id = fcc.fault_code_id WHERE fcc.cause_id IN ($in) GROUP BY fcc.cause_id"
+        )->fetchAll(PDO::FETCH_KEY_PAIR);
+
+        foreach ($rows as $causeId => $own) {
+            if ((int) $own === 0) {
+                unset($this->causes[(int) $causeId]);
+            }
         }
     }
 

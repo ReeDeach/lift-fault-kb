@@ -21,18 +21,19 @@ final class CodeController
     }
 
     /**
-     * GET /api/codes?model=0401К&code=E05&expand=tree
+     * GET /api/codes?model=0401К&code=E05&expand=tree, несколько кодов: code=44 C6
      * Без code — все коды модели (или производителя). Без model — коды из всех вариантов устройств.
      */
     public function index(Request $request): Response
     {
         $fields = [];
 
+        $codes = null;
         $code = $request->queryString('code');
         if ($code !== null) {
-            $code = CodeNormalizer::toLatin($code);
-            if (!CodeNormalizer::isValidCode($code)) {
-                $fields['code'] = 'Код: до 32 символов, буквы, цифры, точка, дефис и подчёркивание';
+            $codes = CodeNormalizer::parseList($code);
+            if ($codes === null) {
+                $fields['code'] = CodeNormalizer::LIST_RULE;
             }
         }
 
@@ -53,7 +54,7 @@ final class CodeController
             $request->queryString('manufacturer'),
         );
 
-        $result = $this->codes->search($modelIds, $code, $limit, $offset);
+        $result = $this->codes->search($modelIds, $codes, $limit, $offset);
         $items = $expand === 'tree' ? $this->codes->withTree($result['items']) : $result['items'];
 
         return Response::json([

@@ -1,0 +1,48 @@
+/* Lift Fault Terminal: токены дизайн-системы.
+   Значения перенесены из tokens.json дизайн-системы. Меняйте их там и здесь вместе. */
+
+:root {
+  /* Системные элементы (полосы прокрутки, автозаполнение) тоже в тёмной теме */
+  color-scheme: dark;
+  /* Цвет (одна тёмная тема) */
+  --ground: #0e0c0b;
+  --surface: #171412;
+  --surface-raised: #221c19;
+  --line-faint: #3a2a22;
+  --line: #c9461a;
+  --ink: #f2ece4;
+  --muted: #9a918a;
+  --accent: #ff5a1f;
+  --on-accent: #0e0c0b;
+  --signal: #ff2e88;
+  --ok: #7fe0c4;
+  /* Отступы */
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-4: 16px;
+  --space-6: 24px;
+  --space-10: 40px;
+  --space-16: 64px;
+  /* Радиусы */
+  --radius-none: 0;
+  --radius-sm: 2px;
+  --radius-round: 50%;
+  /* Свечение */
+  --glow-accent: 0 0 0 1px #ff5a1f, 0 0 14px rgba(255,90,31,0.55);
+  --glow-signal: 0 0 0 1px #ff2e88, 0 0 14px rgba(255,46,136,0.5);
+  /* Шрифты: Unbounded, Golos Text, IBM Plex Mono, Jersey 10 (Google Fonts, подключаются в app.css) */
+  --font-display: "Unbounded", "Arial Black", sans-serif;
+  --font-sans: "Golos Text", system-ui, sans-serif;
+  --font-mono: "IBM Plex Mono", ui-monospace, monospace;
+  --font-pixel: "Jersey 10", "IBM Plex Mono", monospace;
+}
+
+/* Текстовые стили */
+.t-display-xl { font-family: var(--font-display); font-size: 64px; line-height: 0.95; font-weight: 800; letter-spacing: -0.01em; text-transform: uppercase; }
+.t-headline { font-family: var(--font-display); font-size: 32px; line-height: 1.05; font-weight: 800; text-transform: uppercase; }
+.t-title { font-family: var(--font-display); font-size: 15px; line-height: 20px; font-weight: 700; text-transform: uppercase; }
+.t-body { font-family: var(--font-sans); font-size: 15px; line-height: 22px; font-weight: 400; }
+.t-small { font-family: var(--font-sans); font-size: 13px; line-height: 18px; font-weight: 400; }
+.t-label { font-family: var(--font-mono); font-size: 11px; line-height: 14px; font-weight: 500; letter-spacing: 0.08em; text-transform: uppercase; }
+.t-code { font-family: var(--font-mono); font-size: 14px; line-height: 20px; font-weight: 400; }
+.t-code-xl { font-family: var(--font-pixel); font-size: 144px; line-height: 0.85; font-weight: 400; }

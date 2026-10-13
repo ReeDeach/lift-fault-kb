@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Controller;
 
 use App\Diagnosis\CandidateFinder;
+use App\Diagnosis\CodeDetector;
 use App\Diagnosis\Diagnoser;
 use App\Http\HttpException;
 use App\Http\Request;
@@ -59,10 +60,11 @@ final class DiagnoseController
             $strings[$name] = $value === null || trim($value) === '' ? null : trim($value);
         }
 
+        $codes = null;
         if (($strings['code'] ?? null) !== null) {
-            $strings['code'] = CodeNormalizer::toLatin($strings['code']);
-            if (!CodeNormalizer::isValidCode($strings['code'])) {
-                $fields['code'] = 'Код: до 32 символов, буквы, цифры, точка, дефис и подчёркивание';
+            $codes = CodeNormalizer::parseList($strings['code']);
+            if ($codes === null) {
+                $fields['code'] = CodeNormalizer::LIST_RULE;
             }
         }
 
@@ -74,12 +76,20 @@ final class DiagnoseController
         $owner = $modelIds === null ? null : ['models' => $modelIds, 'controllers' => $this->catalog->controllerIds($modelIds)];
 
         $description = trim($description);
-        $candidates = $this->finder->find($description, $modelIds, $owner, $strings['code']);
+
+        // Поле кода пустое, но код написан в тексте («ошибка 49, 50») — берём его оттуда
+        $detected = [];
+        if ($codes === null) {
+            $detected = CodeDetector::detect($description);
+            $codes = $detected === [] ? null : $detected;
+        }
+
+        $candidates = $this->finder->find($description, $modelIds, $owner, $codes);
         $result = $this->diagnoser->diagnose(
-            ['description' => $description, 'model' => $strings['model'], 'code' => $strings['code']],
+            ['description' => $description, 'model' => $strings['model'], 'code' => $codes === null ? null : implode(' ', $codes)],
             $candidates,
         );
 
-        return Response::json($result + ['disclaimer' => Disclaimer::TEXT]);
+        return Response::json($result + ['detected_codes' => $detected, 'disclaimer' => Disclaimer::TEXT]);
     }
 }

@@ -15,15 +15,23 @@ final class QueryBuilderTest extends TestCase
         $this->assertSame('тормоз', QueryBuilder::build('  Тормоз '));
     }
 
-    public function testSeveralWordsNeedHalfOfThem(): void
+    public function testSeveralWordsNeedMostOfThem(): void
     {
-        $this->assertSame('"двери не закрываются"/2', QueryBuilder::build('Двери не закрываются'));
-        $this->assertSame('"кабина стоит гудит лебёдка"/2', QueryBuilder::build('кабина стоит, гудит лебёдка'));
+        $this->assertSame('("двери закрываются"/2) | "двери не закрываются"~2', QueryBuilder::build('Двери не закрываются'));
+        $this->assertSame('"кабина стоит гудит лебёдка"/3', QueryBuilder::build('кабина стоит, гудит лебёдка'));
+        $this->assertSame('"кабина стоит гудит лебёдка"/2', QueryBuilder::build('кабина стоит, гудит лебёдка', 0.34));
+    }
+
+    public function testStopWordsAreDroppedUnlessNothingElseIsLeft(): void
+    {
+        $this->assertSame('("кабина этаже"/2) | "кабина не на этаже"~2', QueryBuilder::build('кабина не на этаже'));
+        $this->assertSame('закрывается | "не закрывается"~2', QueryBuilder::build('не закрывается'));
+        $this->assertSame('"не на"/2', QueryBuilder::build('не на'));
     }
 
     public function testCodesWithCyrillicLookalikesBecomeLatin(): void
     {
-        $this->assertSame('"e36 ошибка"/1', QueryBuilder::build('Е36 ошибка'));
+        $this->assertSame('"e36 ошибка"/2', QueryBuilder::build('Е36 ошибка'));
     }
 
     public function testDesignationsWithRealCyrillicStayCyrillic(): void
@@ -35,7 +43,7 @@ final class QueryBuilderTest extends TestCase
     {
         $query = QueryBuilder::build('двери | "кабина" -привод @title (лифт) /2 ~3 =x \\');
 
-        $this->assertSame('"двери кабина привод title лифт 2 3 x"/4', $query);
+        $this->assertSame('"двери кабина привод title лифт 2 3 x"/5', $query);
     }
 
     public function testInputWithoutWordsGivesNothing(): void

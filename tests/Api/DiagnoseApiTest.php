@@ -111,6 +111,49 @@ final class DiagnoseApiTest extends TestCase
         $this->assertSame(['E36'], array_column($data['codes'], 'code'));
     }
 
+    public function testCodeWithHintTakesBoth(): void
+    {
+        [$status, $data] = $this->post(['description' => 'Пассажиры застряли у этажа', 'model' => '0401К', 'code' => '44 С6']);
+
+        $this->assertSame(200, $status);
+        $this->assertSame(['44', 'C6'], array_column($data['codes'], 'code'));
+        $prompt = json_decode(substr($this->calls[0]['prompt'], strpos($this->calls[0]['prompt'], '{')), true);
+        $this->assertSame('44 C6', $prompt['код_на_индикаторе']);
+    }
+
+    public function testCodesWrittenInDescriptionAreUsed(): void
+    {
+        [$status, $data] = $this->post(['description' => 'Постоянно появляется ошибка 49, 50']);
+
+        $this->assertSame(200, $status);
+        $this->assertSame(['49', '50'], $data['detected_codes']);
+        $this->assertSame('ok', $data['ai']['status']);
+        $this->assertContains('50', array_column($data['codes'], 'code'));
+        $this->assertNotEmpty($data['causes']);
+    }
+
+    public function testCodeFieldWinsOverText(): void
+    {
+        [, $data] = $this->post(['description' => 'Раньше была ошибка 49, теперь другая', 'code' => '50']);
+
+        $this->assertSame([], $data['detected_codes']);
+        $this->assertSame(['50'], array_column($data['codes'], 'code'));
+    }
+
+    public function testCausesOfOtherManufacturersAreNotOffered(): void
+    {
+        [, $data] = $this->post([
+            'description' => 'На табло ошибка 5, дверь кабины не закрывается, привод дверей гудит',
+            'model' => 'Traction MRL ECO II VVVF',
+        ]);
+
+        $this->assertSame(['05'], array_column($data['codes'], 'code'));
+        foreach ($data['causes'] as $cause) {
+            $this->assertStringNotContainsString('ДК.00.00.001', (string) $cause['source'], 'Причина из руководства Могилёвлифтмаша для Doppler');
+            $this->assertStringNotContainsString('ФБИР', (string) $cause['source']);
+        }
+    }
+
     public function testDescriptionAloneFindsCausesThroughSymptoms(): void
     {
         [, $data] = $this->post(['description' => 'При пуске лебёдка гудит, свет в кабине тускнеет']);

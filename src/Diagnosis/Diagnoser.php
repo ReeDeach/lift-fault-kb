@@ -70,7 +70,7 @@ final class Diagnoser
     {
         if ($candidates['causes'] === []) {
             return self::respond(
-                self::aiStatus('skipped', 'В базе нет подходящих записей, ИИ не вызывался: без данных из базы он стал бы угадывать'),
+                self::aiStatus('skipped', 'В базе нет подходящих записей. Уточните описание или впишите код в поле «Код на индикаторе». ИИ не вызывался, чтобы не угадывать.'),
                 [],
                 $candidates,
             );
@@ -241,10 +241,13 @@ final class Diagnoser
     private static function safety(array $codes, array $causes): array
     {
         $notes = [];
-        foreach ($codes as $code) {
-            if ($code['is_safety_related']) {
-                $notes[] = "Код {$code['code']} относится к цепям безопасности: работы только по допуску, устройства безопасности не перемыкать.";
-            }
+        $safetyCodes = array_values(array_unique(array_column(
+            array_filter($codes, static fn (array $c): bool => (bool) $c['is_safety_related']),
+            'code',
+        )));
+        if ($safetyCodes !== []) {
+            $notes[] = (count($safetyCodes) === 1 ? 'Код ' . $safetyCodes[0] . ' относится' : 'Коды ' . implode(', ', $safetyCodes) . ' относятся')
+                . ' к цепям безопасности: работы только по допуску, устройства безопасности не перемыкать.';
         }
         foreach ($causes as $cause) {
             foreach ($cause['fixes'] as $fix) {
