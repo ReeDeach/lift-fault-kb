@@ -546,6 +546,7 @@ a.app-type{display:inline-flex;align-items:center;text-decoration:none}
   .app-ai-opts{display:none;flex-direction:column;gap:8px}
   .app-ai-form.is-open .app-ai-opts{display:flex}
   .app-ai-code{width:auto}
+  .app-ai-opts .app-select{flex:none}
   .app-ai-row{gap:8px}
   .app-ai-text{min-height:44px;padding-top:10px;padding-bottom:10px}
   .app-ai-send{width:48px;height:44px;padding:0;flex:none}
