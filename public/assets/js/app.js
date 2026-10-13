@@ -1198,7 +1198,7 @@
             '<div class="nf app-login">'
             + '<img class="app-login-mark" src="/assets/img/lft-mark.svg" alt="">'
             + '<p class="nf-word">Кто вы?</p>'
-            + '<p class="lft-label">Аккаунт: ' + esc(me.login) + '</p>'
+            + '<p class="lft-label">' + (me.demo ? 'Демо · вход без регистрации, любая роль' : 'Аккаунт: ' + esc(me.login)) + '</p>'
             + '<div class="app-login-actions">'
             + '<button type="button" class="lft-btn" data-login="mechanic">' + icon('settings') + 'Войти как механик</button>'
             + '<button type="button" class="lft-btn lft-btn--ghost" data-login="master">' + icon('building') + 'Войти как мастер</button>'
@@ -1314,9 +1314,18 @@
         }
         html += '<p class="lft-label">Записей: ' + data.total + '</p>';
 
+        // У мастера без фильтра — по механикам, внутри каждого по дате (сервер отдаёт по дате)
+        var grouped = master && !params.mechanic;
+        var mechanicOf = function (e) { return e.lift.mechanic ? e.lift.mechanic.name : 'Без механика'; };
+        var items = data.items.slice();
+        if (grouped) {
+            items = $.map(items, function (e, i) { return { e: e, i: i }; }).sort(function (a, b) {
+                return mechanicOf(a.e).localeCompare(mechanicOf(b.e), 'ru') || a.i - b.i;
+            }).map(function (x) { return x.e; });
+        }
         var group = null;
-        $.each(data.items, function (_, e) {
-            var groupKey = master && !params.mechanic ? (e.lift.mechanic ? e.lift.mechanic.name : 'Без механика') : null;
+        $.each(items, function (_, e) {
+            var groupKey = grouped ? mechanicOf(e) : null;
             if (groupKey !== group && groupKey !== null) {
                 group = groupKey;
                 html += '<h2 class="fp-h app-pj-group">' + esc(group) + '</h2>';

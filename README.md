@@ -285,6 +285,28 @@ docker compose exec php php bin/import-lifts.php private/lifts.csv
 | `POST /api/journal/draft` | черновик записи из переписки с ИИ |
 | `GET /api/journal?lift_id=&mechanic_id=&q=`, `POST /api/journal`, `DELETE /api/journal/{id}` | записи с повторами за 90 дней |
 
+## Демо-версия для показа
+
+Отдельная копия с вымышленными данными: вход без аккаунта (любая роль), плашка «Демо-версия»,
+лимит ИИ 15 запросов в час на посетителя и 300 в сутки. Рабочая база и пароли в неё не попадают.
+
+```bash
+docker compose -f docker-compose.demo.yml --env-file .env.demo up -d --build
+docker compose -f docker-compose.demo.yml --env-file .env.demo exec php php bin/migrate.php migrate
+docker compose -f docker-compose.demo.yml --env-file .env.demo exec php php bin/migrate.php seed
+docker compose -f docker-compose.demo.yml --env-file .env.demo exec php php bin/demo-reset.php
+docker compose -f docker-compose.demo.yml --env-file .env.demo exec php php bin/search.php rebuild
+```
+
+Ссылка для зала — бесплатный туннель Cloudflare (адрес случайный и меняется при перезапуске):
+
+```bash
+docker run -d --name lift-demo-tunnel --network lift-demo_default cloudflare/cloudflared:latest tunnel --no-autoupdate --url http://nginx:80
+docker logs lift-demo-tunnel 2>&1 | grep trycloudflare.com
+```
+
+После показа: `docker rm -f lift-demo-tunnel` закрывает ссылку, `bin/demo-reset.php` возвращает демо-данные.
+
 ## Интерфейс
 
 Открывается по адресу `http://localhost:8080/`. Это одна страница на jQuery 3.7.1
