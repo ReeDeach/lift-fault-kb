@@ -1061,8 +1061,9 @@
         var $error = $('#ai-error');
         var followUp = ai.messages.length > 0;
 
-        if (!text || (!followUp && text.length < 10)) {
-            $error.text(followUp ? 'Напишите уточнение' : 'Опишите неисправность подробнее: не короче 10 символов').prop('hidden', false);
+        // Хватает кода («44») или пары слов: подробности ИИ спросит сам
+        if (text.length < 2) {
+            $error.text(followUp ? 'Напишите уточнение' : 'Опишите неисправность или напишите код').prop('hidden', false);
             return;
         }
         $error.prop('hidden', true);
