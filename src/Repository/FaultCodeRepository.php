@@ -36,9 +36,19 @@ final class FaultCodeRepository
             if ($modelIds === []) {
                 return ['items' => [], 'total' => 0];
             }
+            // Устройства модели выбираются заранее и подставляются списком. С подзапросом внутри OR
+            // MySQL читал всю таблицу кодов, а со списками объединяет два индекса
+            // (model_id, code) и (controller_id, code). Замеры — в docs/performance.md.
             $in = implode(',', array_map('intval', $modelIds));
-            $where[] = "(fc.model_id IN ($in) OR fc.controller_id IN "
-                . "(SELECT mc.controller_id FROM model_controllers mc WHERE mc.model_id IN ($in)))";
+            $controllers = $this->pdo->query(
+                "SELECT DISTINCT controller_id FROM model_controllers WHERE model_id IN ($in)"
+            )->fetchAll(PDO::FETCH_COLUMN);
+
+            $owner = "fc.model_id IN ($in)";
+            if ($controllers !== []) {
+                $owner .= ' OR fc.controller_id IN (' . implode(',', array_map('intval', $controllers)) . ')';
+            }
+            $where[] = "($owner)";
         }
 
         if ($code !== null) {
@@ -120,7 +130,13 @@ final class FaultCodeRepository
         }
 
         $causes = $this->causesByCode($in);
-        $fixes = $this->fixesByCause($causes);
+        $causeIds = [];
+        foreach ($causes as $list) {
+            foreach ($list as $cause) {
+                $causeIds[$cause['id']] = true;
+            }
+        }
+        $fixes = $this->fixesForCauses(array_keys($causeIds));
 
         $cases = [];
         foreach ($this->pdo->query(
@@ -206,22 +222,18 @@ final class FaultCodeRepository
     }
 
     /**
-     * @param array<int, list<array<string, mixed>>> $causes
+     * Ремонты с шагами для причин.
+     *
+     * @param list<int> $causeIds
      * @return array<int, list<array<string, mixed>>> ремонты по id причины
      */
-    private function fixesByCause(array $causes): array
+    public function fixesForCauses(array $causeIds): array
     {
-        $causeIds = [];
-        foreach ($causes as $list) {
-            foreach ($list as $cause) {
-                $causeIds[$cause['id']] = true;
-            }
-        }
         if ($causeIds === []) {
             return [];
         }
 
-        $in = implode(',', array_keys($causeIds));
+        $in = implode(',', array_map('intval', $causeIds));
         $rows = $this->pdo->query(
             'SELECT cf.cause_id, f.id, f.title, f.summary, f.safety_note FROM cause_fixes cf '
             . "JOIN fixes f ON f.id = cf.fix_id WHERE cf.cause_id IN ($in) ORDER BY f.title"

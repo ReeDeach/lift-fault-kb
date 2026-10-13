@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace App\Support;
 
+use App\Ai\GeminiClient;
+use App\Ai\LanguageModel;
 use App\Database\Connection;
 use App\Http\HttpException;
 use App\Search\Documents;
@@ -26,12 +28,22 @@ final class Services
     /**
      * @param (Closure(): PDO)|null $pdoFactory
      * @param (Closure(self): ?SearchIndex)|null $searchIndexFactory
+     * @param (Closure(): ?LanguageModel)|null $languageModelFactory
      */
     public function __construct(
         private readonly ?Closure $pdoFactory = null,
         private readonly ?string $adminToken = null,
         private readonly ?Closure $searchIndexFactory = null,
+        private readonly ?Closure $languageModelFactory = null,
     ) {
+    }
+
+    /**
+     * Языковая модель для диагностики. null — AI_API_KEY не задан, диагностика работает без ИИ.
+     */
+    public function languageModel(): ?LanguageModel
+    {
+        return $this->languageModelFactory !== null ? ($this->languageModelFactory)() : GeminiClient::fromEnv();
     }
 
     public function pdo(): PDO

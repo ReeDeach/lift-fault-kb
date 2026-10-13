@@ -39,9 +39,7 @@ final class CatalogRepository
      */
     public function models(?string $manufacturerSlug): array
     {
-        $sql = 'SELECT mo.id, mo.name, mo.notes, m.slug AS manufacturer_slug, m.name AS manufacturer_name, '
-            . '(SELECT COUNT(*) FROM fault_codes fc WHERE fc.model_id = mo.id OR fc.controller_id IN '
-            . '(SELECT mc.controller_id FROM model_controllers mc WHERE mc.model_id = mo.id)) AS codes_count '
+        $sql = 'SELECT mo.id, mo.name, mo.notes, m.slug AS manufacturer_slug, m.name AS manufacturer_name '
             . 'FROM models mo JOIN manufacturers m ON m.id = mo.manufacturer_id';
         $params = [];
 
@@ -55,16 +53,65 @@ final class CatalogRepository
         $stmt->execute($params);
         $rows = $stmt->fetchAll();
 
-        $controllers = $this->controllersByModel(array_map(static fn (array $r): int => (int) $r['id'], $rows));
+        $modelIds = array_map(static fn (array $r): int => (int) $r['id'], $rows);
+        $controllers = $this->controllersByModel($modelIds);
+        $counts = $this->codeCounts($modelIds, $controllers);
 
         return array_map(static fn (array $r): array => [
             'id' => (int) $r['id'],
             'name' => $r['name'],
             'notes' => $r['notes'],
             'manufacturer' => ['slug' => $r['manufacturer_slug'], 'name' => $r['manufacturer_name']],
-            'codes_count' => (int) $r['codes_count'],
+            'codes_count' => $counts[(int) $r['id']] ?? 0,
             'controllers' => $controllers[(int) $r['id']] ?? [],
         ], $rows);
+    }
+
+    /**
+     * Число кодов, видимых модели: собственные коды плюс коды её устройств.
+     * У кода ровно один владелец, поэтому слагаемые не пересекаются.
+     *
+     * Раньше это был подзапрос на каждую модель с OR внутри: MySQL на каждой модели
+     * читал всю таблицу кодов. Теперь два запроса с GROUP BY по индексам
+     * (model_id, code) и (controller_id, code), а сумма считается здесь.
+     *
+     * @param list<int> $modelIds
+     * @param array<int, list<array<string, mixed>>> $controllers устройства по моделям
+     * @return array<int, int>
+     */
+    private function codeCounts(array $modelIds, array $controllers): array
+    {
+        if ($modelIds === []) {
+            return [];
+        }
+
+        $in = implode(',', $modelIds);
+        $counts = array_map('intval', $this->pdo->query(
+            "SELECT model_id, COUNT(*) FROM fault_codes WHERE model_id IN ($in) GROUP BY model_id"
+        )->fetchAll(PDO::FETCH_KEY_PAIR));
+
+        $controllerIds = [];
+        foreach ($controllers as $list) {
+            foreach ($list as $controller) {
+                $controllerIds[$controller['id']] = true;
+            }
+        }
+        if ($controllerIds === []) {
+            return $counts;
+        }
+
+        $perController = array_map('intval', $this->pdo->query(
+            'SELECT controller_id, COUNT(*) FROM fault_codes WHERE controller_id IN ('
+            . implode(',', array_keys($controllerIds)) . ') GROUP BY controller_id'
+        )->fetchAll(PDO::FETCH_KEY_PAIR));
+
+        foreach ($controllers as $modelId => $list) {
+            foreach ($list as $controller) {
+                $counts[$modelId] = ($counts[$modelId] ?? 0) + ($perController[$controller['id']] ?? 0);
+            }
+        }
+
+        return $counts;
     }
 
     /**

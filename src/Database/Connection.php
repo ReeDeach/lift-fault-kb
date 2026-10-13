@@ -9,16 +9,20 @@ use PDO;
 
 final class Connection
 {
-    public static function fromEnv(): PDO
+    /**
+     * @param string|null $database имя базы вместо DB_NAME
+     * @param class-string<PDO> $class подкласс PDO (замеры подставляют записывающий)
+     */
+    public static function fromEnv(?string $database = null, string $class = PDO::class): PDO
     {
         $dsn = sprintf(
             'mysql:host=%s;port=%d;dbname=%s;charset=utf8mb4',
             Env::get('DB_HOST', '127.0.0.1'),
             (int) Env::get('DB_PORT', '3306'),
-            Env::get('DB_NAME', 'lift_kb'),
+            $database ?? Env::get('DB_NAME', 'lift_kb'),
         );
 
-        return new PDO($dsn, Env::get('DB_USER', 'root'), Env::get('DB_PASSWORD'), [
+        return new $class($dsn, Env::get('DB_USER', 'root'), Env::get('DB_PASSWORD'), [
             PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
             PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
             PDO::ATTR_EMULATE_PREPARES => false,

@@ -94,6 +94,18 @@ final class MigratorTest extends TestCase
         $this->assertSame(['002_more.sql'], $migrator->migrate());
     }
 
+    public function testMigrateUntilStopsBeforeGivenFile(): void
+    {
+        $this->write('001_create.sql', "CREATE TABLE t (id INTEGER);
+");
+        $this->write('002_index.sql', "CREATE INDEX i ON t (id);
+");
+        $migrator = new Migrator($this->pdo, $this->dir);
+
+        $this->assertSame(['001_create.sql'], $migrator->migrate('002_index.sql'));
+        $this->assertSame(['002_index.sql'], $migrator->migrate());
+    }
+
     public function testFailedMigrationIsNotRecorded(): void
     {
         $this->write('001_ok.sql', "CREATE TABLE t (id INTEGER);\n");
