@@ -1,6 +1,6 @@
 /*
  * Lift Fault Terminal: интерфейс справочника на jQuery.
- * Экраны переключаются по адресу после #: #/codes, #/search, #/journal, #/ai.
+ * Экраны переключаются по адресу после #: #/codes, #/journal, #/base, #/ai.
  * Все данные приходят из REST API (/api/...), разметка — классы из app.css.
  * Текст из API вставляется только через esc(). Без экранирования вставляются лишь
  * title_html и snippet_html из /api/search: сервер экранирует их сам и оставляет только <mark>.
@@ -15,7 +15,6 @@
         unresolved: { text: 'не решено', cls: 'lft-badge--alarm' }
     };
 
-    var TYPES = { codes: 'Код', symptoms: 'Симптом', causes: 'Причина', fixes: 'Ремонт', cases: 'Случай' };
     var CONFIDENCE = {
         high: { text: 'вероятно', cls: 'lft-badge--ok' },
         medium: { text: 'возможно', cls: 'lft-badge--warn' },
@@ -322,26 +321,35 @@
         }
     }
 
+    // Строки кодов с подзаголовками устройств (УЛ, ПЧ)
+    function codeRowsHtml(items, model, activeId) {
+        var html = '';
+        var group = null;
+        $.each(items, function (_, item) {
+            var on = String(item.id) === String(activeId || '');
+            var owner = ownerLabel(item.owner);
+            if (owner !== group) {
+                group = owner;
+                html += '<li class="app-group lft-label">' + esc(owner) + '</li>';
+            }
+            html += '<li' + (on ? ' class="on"' : '') + '><a href="' + hashFor('codes', { model: model, id: item.id }) + '">'
+                + '<b class="' + (item.is_safety_related ? 'app-safety' : '') + '">' + esc(item.code) + '</b>'
+                + '<span>' + esc(item.title) + '</span></a></li>';
+        });
+        return html;
+    }
+
     function renderCodeList(model, activeId, token) {
-        var key = model || '*';
+        if (!model) {
+            renderModelGroups(activeId, token);
+            return;
+        }
+        var key = model;
         var $list = $('#code-list');
 
         function draw() {
             var html = '<span class="lft-label app-list-head">Коды · ' + listCache.items.length + ' из ' + listCache.total + '</span>'
-                + '<ul class="fp-list">';
-            var group = null;
-            $.each(listCache.items, function (_, item) {
-                var on = String(item.id) === String(activeId || '');
-                var owner = ownerLabel(item.owner);
-                if (owner !== group) {
-                    group = owner;
-                    html += '<li class="app-group lft-label">' + esc(owner) + '</li>';
-                }
-                html += '<li' + (on ? ' class="on"' : '') + '><a href="' + hashFor('codes', { model: model, id: item.id }) + '">'
-                    + '<b class="' + (item.is_safety_related ? 'app-safety' : '') + '">' + esc(item.code) + '</b>'
-                    + '<span>' + esc(item.title) + '</span></a></li>';
-            });
-            html += '</ul>';
+                + '<ul class="fp-list">' + codeRowsHtml(listCache.items, model, activeId) + '</ul>';
             if (listCache.items.length < listCache.total) {
                 html += '<div class="app-more"><button type="button" class="lft-btn lft-btn--ghost" data-action="more">Показать ещё</button></div>';
             }
@@ -356,7 +364,7 @@
             return;
         }
 
-        api('/api/codes', { model: model || null, limit: PAGE_LIMIT, offset: 0 }).then(function (data) {
+        api('/api/codes', { model: model, limit: PAGE_LIMIT, offset: 0 }).then(function (data) {
             listCache = { key: key, items: data.items, total: data.total };
             if (token === renderToken) {
                 draw();
@@ -364,6 +372,175 @@
         }, function (error) {
             if (token === renderToken) {
                 $list.html('<div class="app-pad">' + errorWindow(error, 'Список кодов') + '</div>');
+            }
+        });
+    }
+
+    // ---------- Список кодов по моделям: модель раскрывается по нажатию ----------
+    // Коды принадлежат устройствам (УЛ, ПЧ), а устройства стоят на моделях. Без выбранной
+    // модели слева — модели лифтов, внутри — их коды по устройствам. Устройства, не привязанные
+    // ни к одной модели (другие исполнения УЛ), — отдельными группами по производителю.
+
+    var groupCache = {};
+    var openGroups = {};
+
+    function renderModelGroups(activeId, token) {
+        var $list = $('#code-list');
+        loadModels().then(function (models) {
+            if (token !== renderToken) {
+                return;
+            }
+            // Модели без кодов в списке не показываем
+            models = $.grep(models, function (m) { return m.codes_count > 0; });
+            var html = '<span class="lft-label app-list-head">Модели · ' + models.length + '</span><div class="app-acc-list">';
+            $.each(models, function (_, m) {
+                html += accHtml('m' + m.id, m.manufacturer.name, m.name, m.codes_count);
+            });
+            $list.html(html + '</div>');
+            otherGroups().then(function (groups) {
+                if (token !== renderToken) {
+                    return;
+                }
+                $.each(groups, function (_, g) {
+                    $list.find('.app-acc-list').append(accHtml(g.key, g.vendor, g.name, g.items.length));
+                });
+                $.each(openGroups, function (key, open) {
+                    if (open && key.charAt(0) === 'o') {
+                        openGroup(key, activeId, false);
+                    }
+                });
+            });
+            $.each(openGroups, function (key, open) {
+                if (open && key.charAt(0) === 'm') {
+                    openGroup(key, activeId, false);
+                }
+            });
+        }, function (error) {
+            $list.html('<div class="app-pad">' + errorWindow(error, 'Модели') + '</div>');
+        });
+    }
+
+    function accHtml(key, maker, name, count) {
+        return '<div class="app-acc" data-acc="' + key + '">'
+            + '<button type="button" class="app-acc-head" aria-expanded="false" aria-controls="acc-' + key + '">'
+            + '<span class="app-acc-title"><span class="lft-label">' + esc(maker) + '</span><span class="app-acc-name">' + esc(name) + '</span></span>'
+            + (count === null ? '' : '<span class="app-acc-count">' + count + ' ' + plural(count, 'код', 'кода', 'кодов') + '</span>')
+            + '</button><ul class="fp-list app-acc-body" id="acc-' + key + '" hidden></ul></div>';
+    }
+
+    // Устройства без модели, сгруппированные по производителю: «Могилёвлифтмаш · УЛ, другие исполнения»
+    var otherCache = null;
+
+    function otherGroups() {
+        if (otherCache) {
+            return otherCache;
+        }
+        otherCache = $.when(loadModels(), loadAllCodes({})).then(function (models, codes) {
+            var used = {};
+            $.each(models, function (_, m) {
+                $.each(m.controllers, function (_, c) { used[c.id] = true; });
+            });
+            var groups = [];
+            var byVendor = {};
+            $.each(codes, function (_, item) {
+                if (item.owner.type !== 'controller' || used[item.owner.id]) {
+                    return;
+                }
+                var vendor = item.owner.vendor || 'Без производителя';
+                if (!byVendor[vendor]) {
+                    byVendor[vendor] = { key: 'o' + item.owner.id, vendor: vendor, items: [], prefixes: {} };
+                    groups.push(byVendor[vendor]);
+                }
+                byVendor[vendor].items.push(item);
+                byVendor[vendor].prefixes[item.owner.name.split(' ')[0]] = true;
+            });
+            $.each(groups, function (_, g) {
+                var prefixes = Object.keys(g.prefixes);
+                g.name = prefixes.length === 1 ? prefixes[0] + ', другие исполнения' : 'Другие устройства';
+            });
+            return groups;
+        });
+        otherCache.fail(function () {
+            otherCache = null;
+        });
+        return otherCache;
+    }
+
+    // Все коды группы (по страницам), один раз за сессию
+    function groupCodes(key) {
+        if (groupCache[key]) {
+            return groupCache[key];
+        }
+        var request;
+        if (key.charAt(0) === 'o') {
+            request = otherGroups().then(function (groups) {
+                var found = $.grep(groups, function (g) { return g.key === key; });
+                return found.length ? found[0].items : [];
+            });
+        } else {
+            request = loadAllCodes({ model: key.slice(1) });
+        }
+        groupCache[key] = request;
+        request.fail(function () {
+            delete groupCache[key];
+        });
+        return request;
+    }
+
+    function openGroup(key, activeId, scroll) {
+        var $acc = $('.app-acc[data-acc="' + key + '"]');
+        if (!$acc.length) {
+            return;
+        }
+        var $body = $acc.find('.app-acc-body');
+        openGroups[key] = true;
+        $acc.addClass('is-open').find('.app-acc-head').attr('aria-expanded', 'true');
+        $body.prop('hidden', false);
+        if (!$body.children().length) {
+            $body.html('<li class="app-group lft-label">Загрузка…</li>');
+        }
+        groupCodes(key).then(function (items) {
+            // Ссылки без фильтра модели: иначе список переключится в плоский вид одной модели
+            $body.html(items.length ? codeRowsHtml(items, null, activeId)
+                : '<li class="app-group lft-label">Кодов пока нет</li>');
+            if (scroll) {
+                var $on = $body.find('li.on');
+                ($on.length ? $on : $acc)[0].scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+            }
+        });
+    }
+
+    function closeGroup(key) {
+        var $acc = $('.app-acc[data-acc="' + key + '"]');
+        openGroups[key] = false;
+        $acc.removeClass('is-open').find('.app-acc-head').attr('aria-expanded', 'false');
+        $acc.find('.app-acc-body').prop('hidden', true);
+    }
+
+    // Открытый код — раскрыть его модель в списке слева, если она ещё свёрнута
+    function revealInList(item) {
+        if (currentRoute().params.model) {
+            return;
+        }
+        $.when(loadModels(), otherGroups()).then(function (models, groups) {
+            var key = null;
+            $.each(groups, function (_, g) {
+                if ($.grep(g.items, function (i) { return i.owner.id === item.owner.id; }).length) {
+                    key = g.key;
+                }
+            });
+            $.each(models, function (_, m) {
+                var owns = item.owner.type === 'model'
+                    ? m.id === item.owner.id
+                    : $.grep(m.controllers, function (c) { return c.id === item.owner.id; }).length > 0;
+                if (owns) {
+                    key = 'm' + m.id;
+                    return false;
+                }
+                return true;
+            });
+            if (key && !openGroups[key]) {
+                openGroup(key, item.id, true);
             }
         });
     }
@@ -450,6 +627,7 @@
         api('/api/codes/' + encodeURIComponent(id)).then(function (data) {
             if (token === renderToken) {
                 drawDetail(data.item);
+                revealInList(data.item);
             }
         }, function (error) {
             if (token !== renderToken) {
@@ -703,6 +881,31 @@
             + '<section class="fp-side"><div><h2 class="fp-h app-h-icon">' + icon('journal') + 'Повторы</h2>' + bars
             + '<p class="lft-label app-note">По каждому коду API отдаёт до 5 последних случаев</p></div></section>'
             + '</div>');
+        countUp($('#journal-body'));
+    }
+
+    // Числа сводки досчитываются от нуля. При «уменьшить движение» — сразу итог.
+    function countUp($root) {
+        if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+            return;
+        }
+        $root.find('.jr-num').each(function () {
+            var node = this.firstChild;
+            var target = node && node.nodeType === 3 ? parseInt(node.nodeValue, 10) : NaN;
+            if (!(target > 0)) {
+                return;
+            }
+            var start = performance.now();
+            var step = function (now) {
+                var k = Math.min(1, (now - start) / 600);
+                node.nodeValue = String(Math.round(target * (1 - Math.pow(1 - k, 3))));
+                if (k < 1) {
+                    requestAnimationFrame(step);
+                }
+            };
+            node.nodeValue = '0';
+            requestAnimationFrame(step);
+        });
     }
 
     function applyJournalFilter() {
@@ -716,106 +919,6 @@
             }
         });
         $('#journal-none').prop('hidden', shown > 0);
-    }
-
-    // ---------- Экран «Поиск» ----------
-
-    function renderSearch(params, token) {
-        var q = params.q || '';
-        var model = params.model || '';
-        var types = params.type ? params.type.split(',') : [];
-
-        var chips = '';
-        $.each(TYPES, function (key, label) {
-            var on = !types.length || types.indexOf(key) !== -1;
-            chips += '<button type="button" class="fp-chip app-type" data-type="' + key + '" aria-pressed="' + on + '">' + esc(label) + '</button>';
-        });
-
-        $view.html(
-            '<form class="fp-search app-search" id="search-form" role="search">'
-            + '<label class="fp-field">' + icon('search')
-            + '<input class="app-input" id="search-input" type="search" value="' + esc(q) + '" autocomplete="off" maxlength="300" '
-            + 'placeholder="Симптом, причина, код: двери не закрываются" aria-label="Что искать"></label>'
-            + '<label class="fp-chip app-select">' + icon('factory')
-            + '<select id="search-model" aria-label="Модель лифта"><option value="">Загрузка моделей…</option></select></label>'
-            + '<button class="lft-btn" type="submit">Искать</button>'
-            + '<div class="app-types" role="group" aria-label="Разделы">' + chips + '</div>'
-            + '<p class="app-field-error lft-label" id="search-error" hidden></p>'
-            + '</form>'
-            + '<div class="app-pad" id="search-body"></div>'
-        );
-
-        loadModels().then(function (models) {
-            if (token === renderToken) {
-                $('#search-model').html(modelOptions(models, model)).trigger('lft:refresh');
-            }
-        });
-
-        if (!q) {
-            $('#search-body').html(
-                '<p class="lft-label">Полнотекстовый поиск</p>'
-                + '<p class="fp-title">Ищите своими словами</p>'
-                + '<p class="fp-desc">Поиск идёт по кодам, симптомам, причинам, ремонтам и случаям из журнала. '
-                + 'Формы слов не важны: «дверь не закрывается» найдёт «Двери не закрываются». Модель оставляет только её коды.</p>'
-            );
-            return;
-        }
-
-        $('#search-body').html(loading('Ищем'));
-        var query = { q: q, model: model || null, limit: 40 };
-        if (types.length && types.length < Object.keys(TYPES).length) {
-            query.type = types.join(',');
-        }
-        api('/api/search', query).then(function (data) {
-            if (token === renderToken) {
-                drawSearch(data, model);
-            }
-        }, function (error) {
-            if (token !== renderToken) {
-                return;
-            }
-            if (error.status === 400) {
-                $('#search-error').text($.map(error.fields, function (t) { return t; }).join(' · ') || error.message).prop('hidden', false);
-                $('#search-body').empty();
-            } else {
-                $('#search-body').html(errorWindow(error, 'Поиск'));
-            }
-        });
-    }
-
-    function drawSearch(data, model) {
-        if (!data.items.length) {
-            $('#search-body').html('<p class="fp-title">Ничего не нашлось</p><p class="fp-desc">Попробуйте другие слова или уберите фильтр разделов.</p>');
-            return;
-        }
-        var html = '<p class="lft-label">Найдено: ' + data.total + '</p><ul class="app-hits">';
-        $.each(data.items, function (_, hit) {
-            // title_html и snippet_html экранированы сервером, в них только <mark>
-            var title = hit.title_html || esc(hit.title);
-            var body = '<span class="app-hit-title">' + title + '</span>'
-                + (hit.snippet_html ? '<span class="app-hit-snippet">' + hit.snippet_html + '</span>' : '')
-                + (hit.owner ? '<span class="lft-label">' + esc(ownerLabel(hit.owner)) + '</span>' : '');
-            var lead = hit.type === 'codes'
-                ? '<b class="app-hit-code' + (hit.is_safety_related ? ' app-safety' : '') + '">' + esc(hit.code) + '</b>'
-                : '<span class="lft-label app-hit-type">' + esc(TYPES[hit.type] || hit.type) + '</span>';
-            html += '<li>' + (hit.type === 'codes'
-                ? '<a class="app-hit" href="' + hashFor('codes', { model: model, id: hit.id }) + '">' + lead + '<span class="app-hit-body">' + body + '</span></a>'
-                : '<div class="app-hit">' + lead + '<span class="app-hit-body">' + body + '</span></div>') + '</li>';
-        });
-        $('#search-body').html(html + '</ul>');
-    }
-
-    function submitSearch() {
-        var types = $('.app-type[aria-pressed="true"]').map(function () { return $(this).data('type'); }).get();
-        if (!types.length) {
-            $('#search-error').text('Выберите хотя бы один раздел').prop('hidden', false);
-            return;
-        }
-        go('search', {
-            q: $.trim($('#search-input').val()),
-            model: $('#search-model').val(),
-            type: types.length < Object.keys(TYPES).length ? types.join(',') : null
-        });
     }
 
     // ---------- Экран «ИИ-диагностика» ----------
@@ -954,8 +1057,13 @@
         var modelName = model ? $('#ai-model option:selected').text().replace(/\s*\(\d+\)$/, '') : 'все модели';
         var question = '<div class="ch-q"><span class="lft-label">' + (followUp ? 'Уточнение' : 'Вы') + ' · ' + esc(modelName)
             + (code ? ' · код ' + esc(code) : '') + '</span>' + esc(text) + '</div>';
-        var $pending = $('<div class="ch-progress app-ai-wait"><div><span class="lft-label">Ищем в базе, спрашиваем ИИ</span>'
-            + '<span class="lft-label app-accent">до 30 с</span></div><div class="ch-meter"><i></i></div></div>');
+        var $pending = $('<div class="ch-progress app-ai-wait" role="status"><div><span class="lft-label">Ищем в базе, спрашиваем ИИ</span>'
+            + '<span class="lft-label app-accent app-ai-elapsed">0 с</span></div><div class="ch-meter"><i></i></div></div>');
+        // Счётчик секунд — живой признак работы при любых настройках анимации телефона
+        var started = Date.now();
+        var elapsedTimer = setInterval(function () {
+            $pending.find('.app-ai-elapsed').text(Math.round((Date.now() - started) / 1000) + ' с');
+        }, 1000);
 
         var body = { description: aiDescription(text) };
         if (code) {
@@ -967,7 +1075,7 @@
 
         $('.app-ai-intro').remove();
         $('#ai-thread').append(question).append($pending);
-        $('#ai-send').prop('disabled', true);
+        $('#ai-send').prop('disabled', true).attr('aria-busy', 'true');
         $('#ai-text').val('');
         growTextarea($('#ai-text')[0]);
         $pending[0].scrollIntoView({ block: 'end', behavior: 'smooth' });
@@ -999,7 +1107,8 @@
                 $error.text($.map(error.fields, function (t) { return t; }).join(' · ')).prop('hidden', false);
             }
         }).always(function () {
-            $('#ai-send').prop('disabled', false);
+            clearInterval(elapsedTimer);
+            $('#ai-send').prop('disabled', false).removeAttr('aria-busy');
             updateAiForm();
         });
     }
@@ -1198,7 +1307,7 @@
             '<div class="nf app-login">'
             + '<img class="app-login-mark" src="/assets/img/lft-mark.svg" alt="">'
             + '<p class="nf-word">Кто вы?</p>'
-            + '<p class="lft-label">Аккаунт: ' + esc(me.login) + '</p>'
+            + '<p class="lft-label">' + (me.demo ? 'Демо · вход без регистрации, любая роль' : 'Аккаунт: ' + esc(me.login)) + '</p>'
             + '<div class="app-login-actions">'
             + '<button type="button" class="lft-btn" data-login="mechanic">' + icon('settings') + 'Войти как механик</button>'
             + '<button type="button" class="lft-btn lft-btn--ghost" data-login="master">' + icon('building') + 'Войти как мастер</button>'
@@ -1314,9 +1423,18 @@
         }
         html += '<p class="lft-label">Записей: ' + data.total + '</p>';
 
+        // У мастера без фильтра — по механикам, внутри каждого по дате (сервер отдаёт по дате)
+        var grouped = master && !params.mechanic;
+        var mechanicOf = function (e) { return e.lift.mechanic ? e.lift.mechanic.name : 'Без механика'; };
+        var items = data.items.slice();
+        if (grouped) {
+            items = $.map(items, function (e, i) { return { e: e, i: i }; }).sort(function (a, b) {
+                return mechanicOf(a.e).localeCompare(mechanicOf(b.e), 'ru') || a.i - b.i;
+            }).map(function (x) { return x.e; });
+        }
         var group = null;
-        $.each(data.items, function (_, e) {
-            var groupKey = master && !params.mechanic ? (e.lift.mechanic ? e.lift.mechanic.name : 'Без механика') : null;
+        $.each(items, function (_, e) {
+            var groupKey = grouped ? mechanicOf(e) : null;
             if (groupKey !== group && groupKey !== null) {
                 group = groupKey;
                 html += '<h2 class="fp-h app-pj-group">' + esc(group) + '</h2>';
@@ -1504,18 +1622,19 @@
             return 'Механик: ' + m + (a && a.summary ? '\nИИ: ' + a.summary : '');
         }).join('\n\n');
 
-        $('#save-submit').prop('disabled', true);
+        $('#save-submit').prop('disabled', true).attr('aria-busy', 'true');
         apiPost('/api/journal', body).then(function (data) {
             liftsRequest = null;
             $('.app-sheet .lft-window__body').html(
-                '<p class="fp-title">Записано</p>'
+                '<div class="app-done">' + icon('ok') + '</div>'
+                + '<p class="fp-title">Записано</p>'
                 + '<p class="app-text">' + esc(liftName(data.item.lift)) + '</p>'
                 + '<p class="app-text app-muted">' + esc(data.item.title) + '</p>'
                 + '<div class="app-login-actions"><a class="lft-btn" href="' + hashFor('journal', { lift: data.item.lift.id }) + '" data-close-sheet>Открыть журнал лифта</a>'
                 + '<button type="button" class="lft-btn lft-btn--ghost" id="save-new">Новый разбор</button></div>'
             );
         }, function (error) {
-            $('#save-submit').prop('disabled', false);
+            $('#save-submit').prop('disabled', false).removeAttr('aria-busy');
             $('#save-error').text($.map(error.fields || {}, function (t, k) { return k + ': ' + t; }).join(' · ') || error.message).prop('hidden', false);
         });
     }
@@ -1525,7 +1644,9 @@
     function render() {
         var route = currentRoute();
         var token = ++renderToken;
-        var page = { codes: true, search: true, journal: true, base: true, ai: true }[route.page] ? route.page : 'codes';
+        // Отдельного поиска больше нет: поиск по описанию делает ИИ-диагностика
+        var page = route.page === 'search' ? 'ai' : route.page;
+        page = { codes: true, journal: true, base: true, ai: true }[page] ? page : 'codes';
         if (page === 'base' && !isMaster()) {
             page = 'journal';
         }
@@ -1541,8 +1662,6 @@
             renderJournal(route.params, token);
         } else if (page === 'base') {
             renderBase(route.params, token);
-        } else if (page === 'search') {
-            renderSearch(route.params, token);
         } else if (page === 'ai') {
             renderAi(token);
         } else {
@@ -1725,6 +1844,14 @@
         .on('change', '#journal-model', function () {
             go('base', { model: $(this).val() });
         })
+        .on('click', '.app-acc-head', function () {
+            var key = $(this).closest('.app-acc').data('acc');
+            if ($(this).attr('aria-expanded') === 'true') {
+                closeGroup(key);
+            } else {
+                openGroup(key, currentRoute().params.id, true);
+            }
+        })
         .on('click', '[data-action="more"]', function () {
             $(this).prop('disabled', true).text('Загрузка…');
             loadMoreCodes();
@@ -1736,21 +1863,6 @@
         })
         .on('click', '[data-action="clear"]', function () {
             go('codes', { model: currentRoute().params.model });
-        })
-        .on('submit', '#search-form', function (e) {
-            e.preventDefault();
-            submitSearch();
-        })
-        .on('change', '#search-model', function () {
-            if ($.trim($('#search-input').val())) {
-                submitSearch();
-            }
-        })
-        .on('click', '.app-type', function () {
-            $(this).attr('aria-pressed', $(this).attr('aria-pressed') === 'true' ? 'false' : 'true');
-            if ($.trim($('#search-input').val())) {
-                submitSearch();
-            }
         })
         .on('submit', '#ai-form', function (e) {
             e.preventDefault();

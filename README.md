@@ -285,6 +285,28 @@ docker compose exec php php bin/import-lifts.php private/lifts.csv
 | `POST /api/journal/draft` | черновик записи из переписки с ИИ |
 | `GET /api/journal?lift_id=&mechanic_id=&q=`, `POST /api/journal`, `DELETE /api/journal/{id}` | записи с повторами за 90 дней |
 
+## Демо-версия для показа
+
+Отдельная копия с вымышленными данными: вход без аккаунта (любая роль), плашка «Демо-версия»,
+лимит ИИ 15 запросов в час на посетителя и 300 в сутки. Рабочая база и пароли в неё не попадают.
+
+```bash
+docker compose -f docker-compose.demo.yml --env-file .env.demo up -d --build
+docker compose -f docker-compose.demo.yml --env-file .env.demo exec php php bin/migrate.php migrate
+docker compose -f docker-compose.demo.yml --env-file .env.demo exec php php bin/migrate.php seed
+docker compose -f docker-compose.demo.yml --env-file .env.demo exec php php bin/demo-reset.php
+docker compose -f docker-compose.demo.yml --env-file .env.demo exec php php bin/search.php rebuild
+```
+
+Ссылка для зала — бесплатный туннель Cloudflare (адрес случайный и меняется при перезапуске):
+
+```bash
+docker run -d --name lift-demo-tunnel --network lift-demo_default cloudflare/cloudflared:latest tunnel --no-autoupdate --url http://nginx:80
+docker logs lift-demo-tunnel 2>&1 | grep trycloudflare.com
+```
+
+После показа: `docker rm -f lift-demo-tunnel` закрывает ссылку, `bin/demo-reset.php` возвращает демо-данные.
+
 ## Интерфейс
 
 Открывается по адресу `http://localhost:8080/`. Это одна страница на jQuery 3.7.1
@@ -297,10 +319,9 @@ docker compose exec php php bin/import-lifts.php private/lifts.csv
 | `#/codes?code=45` | один вариант — сразу карточка кода; несколько — выбор устройства; ничего — экран «код не найден» |
 | `#/codes?code=44 C6` | несколько разных кодов сразу (код и подсказка) — карточки подряд, случаи и симптомы общие |
 | `#/codes?id=137` | карточка кода: причины (по РЭ или с оценкой вероятности), ремонты с шагами, симптомы, случаи |
-| `#/search?q=…&type=…` | полнотекстовый поиск с подсветкой и фильтром разделов, коды открываются карточкой |
 | `#/journal` | личный журнал механика; у мастера — журналы всех механиков |
 | `#/base` | общая база обезличенных случаев (мастер) |
-| `#/ai` | ИИ-диагностика в виде переписки: описание, код, модель; ответ с причинами из базы, ремонтами, предупреждениями ТБ и вопросами |
+| `#/ai` | ИИ-диагностика в виде переписки (поиск по описанию тоже здесь: отдельного экрана поиска нет, `#/search` ведёт сюда): описание, код, модель; ответ с причинами из базы, ремонтами, предупреждениями ТБ и вопросами |
 
 Журнал собирается из дерева кодов (`/api/codes?expand=tree`), поэтому в нём только
 случаи, привязанные к кодам, и не больше пяти последних на код.

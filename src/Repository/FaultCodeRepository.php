@@ -9,7 +9,7 @@ use PDO;
 final class FaultCodeRepository
 {
     private const BASE_SELECT = 'SELECT fc.id, fc.code, fc.title, fc.description, fc.is_safety_related, fc.source, '
-        . 'fc.model_id, fc.controller_id, k.name AS controller_name, k.kind AS controller_kind, mo.name AS model_name '
+        . 'fc.model_id, fc.controller_id, k.name AS controller_name, k.kind AS controller_kind, k.vendor AS controller_vendor, mo.name AS model_name '
         . 'FROM fault_codes fc '
         . 'LEFT JOIN controllers k ON k.id = fc.controller_id '
         . 'LEFT JOIN models mo ON mo.id = fc.model_id';
@@ -284,7 +284,7 @@ final class FaultCodeRepository
     private function shape(array $row): array
     {
         $owner = $row['controller_id'] !== null
-            ? ['type' => 'controller', 'id' => (int) $row['controller_id'], 'name' => $row['controller_name'], 'kind' => $row['controller_kind']]
+            ? ['type' => 'controller', 'id' => (int) $row['controller_id'], 'name' => $row['controller_name'], 'kind' => $row['controller_kind'], 'vendor' => $row['controller_vendor']]
             : ['type' => 'model', 'id' => (int) $row['model_id'], 'name' => $row['model_name']];
 
         return [

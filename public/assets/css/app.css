@@ -259,6 +259,22 @@ body{background:var(--ground);color:var(--ink);font-family:var(--font-sans);marg
 .app-list .fp-list li b.app-safety{color:var(--signal)}
 .app-list .fp-list li.on{box-shadow:inset 2px 0 0 var(--accent)}
 .app-more{padding:16px 24px}
+
+/* Модели в списке кодов: раскрываются по нажатию */
+.app-acc{border-bottom:1px solid var(--line-faint)}
+.app-acc-head{display:flex;align-items:center;gap:12px;width:100%;padding:14px 24px;background:transparent;border:0;color:var(--ink);text-align:left;cursor:pointer;transition:background-color .15s}
+.app-acc-head:hover,.app-acc-head:focus-visible{background:var(--surface);outline:0}
+.app-acc-head::after{content:"";flex:none;width:7px;height:7px;margin-left:4px;border-right:2px solid var(--accent);border-bottom:2px solid var(--accent);transform:translateY(-2px) rotate(45deg);transition:transform .2s}
+.app-acc.is-open .app-acc-head{background:var(--surface-raised);box-shadow:inset 2px 0 0 var(--accent)}
+.app-acc.is-open .app-acc-head::after{transform:translateY(2px) rotate(-135deg)}
+.app-acc-title{flex:1;min-width:0;display:grid;gap:2px}
+.app-acc-name{font:700 14px/18px var(--font-display);text-transform:uppercase;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.app-acc-count{flex:none;font:500 11px/1 var(--font-mono);letter-spacing:.06em;text-transform:uppercase;color:var(--muted)}
+.app-acc.is-open .app-acc-count{color:var(--accent)}
+.app-acc-body{border-top:1px solid var(--line-faint)}
+.app-acc-body li.app-group{padding-left:32px!important}
+.app-acc-body a{padding-left:32px!important}
+@media (prefers-reduced-motion:no-preference){.app-acc.is-open .app-acc-body{animation:app-in .2s ease-out both}}
 .app-more .lft-btn{width:100%}
 
 /* Карточка кода */
@@ -337,21 +353,11 @@ a.nf-act:hover span{color:var(--accent)}
 /* Несколько кодов подряд («44 C6») */
 .app-detail-sep{height:0;margin:40px 0;border-top:1px dashed var(--line)}
 
-/* Поиск по базе */
+/* Чипы-переключатели (вкладки журнала, выбор механика и итога записи) */
 .app-types{display:flex;flex-wrap:wrap;gap:8px;flex-basis:100%}
 .app-type{height:36px;background:transparent;color:var(--muted);cursor:pointer}
 .app-type[aria-pressed="true"]{border-color:var(--accent);color:var(--accent)}
 .app-type:focus-visible{outline:2px solid var(--ink);outline-offset:2px}
-.app-hits{list-style:none;margin:16px 0 0;padding:0;max-width:900px}
-.app-hit{display:grid;grid-template-columns:96px 1fr;gap:16px;padding:16px 0;border-bottom:1px solid var(--line-faint);color:var(--ink);text-decoration:none}
-a.app-hit:hover .app-hit-title{color:var(--accent)}
-.app-hit-code{font:400 44px/.9 var(--font-pixel);color:var(--accent)}
-.app-hit-code.app-safety{color:var(--signal)}
-.app-hit-type{padding-top:4px}
-.app-hit-body{display:grid;gap:6px;min-width:0}
-.app-hit-title{font-size:15px;line-height:22px}
-.app-hit-snippet{font-size:13px;line-height:18px;color:var(--muted);overflow-wrap:anywhere}
-.app-hits mark,.app-hit mark{background:transparent;color:var(--accent);box-shadow:inset 0 -1px 0 var(--accent)}
 
 /* ИИ-диагностика: чат из ch-… */
 .app-ai-page{flex:1;display:flex;flex-direction:column}
@@ -364,7 +370,7 @@ a.app-hit:hover .app-hit-title{color:var(--accent)}
 .app-ai-bar{display:flex;justify-content:space-between;align-items:center;gap:12px}
 .app-ai-toggle,.app-ai-new{display:inline-flex;gap:6px;align-items:center;background:transparent;border:0;padding:4px 0;cursor:pointer;color:var(--muted)}
 .app-ai-toggle{pointer-events:none}
-.app-ai-new{color:var(--accent)}
+.app-ai-new{color:var(--accent);white-space:nowrap}
 .app-ai-new[hidden]{display:none}
 .app-ai-opts{display:flex;gap:12px}
 .app-ai-row{display:flex;gap:12px;align-items:flex-end}
@@ -390,7 +396,10 @@ a.app-hit:hover .app-hit-title{color:var(--accent)}
 .app-ai-safety .lft-label{display:block;color:var(--accent);margin-bottom:8px}
 .app-ai-safety ul{margin:0;padding:0;list-style:none;display:grid;gap:8px;font:400 13px/18px var(--font-sans);letter-spacing:0;text-transform:none;color:var(--ink)}
 .app-ai-safety li+li{padding-top:8px;border-top:1px solid var(--line-faint)}
-@media (prefers-reduced-motion:reduce){.app-ai-wait .ch-meter i{animation:none}}
+/* «Уменьшить движение» на телефоне: вместо бегущей полосы — плавное мерцание, чтобы не казалось, что всё зависло */
+@media (prefers-reduced-motion:reduce){.app-ai-wait .ch-meter i{width:100%;animation:app-pulse 1.6s ease-in-out infinite}}
+@keyframes app-pulse{50%{opacity:.25}}
+.app-ai-elapsed{font-variant-numeric:tabular-nums}
 
 /* Свой выпадающий список вместо системного */
 .app-dd-native{position:absolute;width:1px;height:1px;opacity:0;pointer-events:none}
@@ -518,8 +527,6 @@ a.app-type{display:inline-flex;align-items:center;text-decoration:none}
   .app-nf-warn{width:auto;margin-top:0}
   .app-variant{grid-template-columns:72px 1fr}
   .app-variant-code{font-size:44px}
-  .app-hit{grid-template-columns:64px 1fr;gap:12px}
-  .app-hit-code{font-size:34px}
   .ch-thread{padding:16px}
   .ch-input{padding:12px 16px}
   /* На телефоне внизу одна строка ввода, код и модель свёрнуты в сводку над ней */
@@ -547,8 +554,103 @@ a.app-type{display:inline-flex;align-items:center;text-decoration:none}
   .app-places{max-height:200px}
   .app-pj-list{padding:16px!important}
   .app-ai-actions{gap:12px}
-  .app-tabs{display:grid;grid-template-columns:repeat(4,1fr);position:fixed;left:0;right:0;bottom:0;height:64px;background:var(--ground);border-top:1px solid var(--line);z-index:10}
+  .app-tabs{display:grid;grid-template-columns:repeat(3,1fr);position:fixed;left:0;right:0;bottom:0;height:64px;background:var(--ground);border-top:1px solid var(--line);z-index:10}
   .app-tabs a{display:grid;justify-items:center;align-content:center;gap:4px;color:var(--muted);text-decoration:none;font:500 10px/1 var(--font-mono);letter-spacing:.06em;text-transform:uppercase}
   .app-tabs a.on{color:var(--accent);box-shadow:inset 0 2px 0 var(--accent)}
   body{padding-bottom:64px}
 }
+
+/* ==========================================================================
+   Микроанимации и состояния. Всё движение — только когда пользователь не просил
+   его уменьшить (prefers-reduced-motion). Смена цвета, рамки и свечения остаётся всегда.
+   ========================================================================== */
+
+/* Состояния, работающие при любых настройках */
+.lft-btn{transition:background-color .15s,border-color .15s,color .15s,box-shadow .15s,transform .08s}
+.lft-btn:focus-visible{outline:0;box-shadow:var(--glow-accent)}
+.lft-btn[aria-busy="true"]{cursor:progress;background:repeating-linear-gradient(-45deg,var(--accent) 0 10px,#e04a12 10px 20px);background-size:28px 28px;border-color:var(--accent);color:var(--on-accent)}
+.fp-field,.fp-chip,.app-draft-input,.app-pick-row,.app-liftno,.app-type,.app-example,.app-variant,.app-pj-entry{transition:border-color .15s,background-color .15s,box-shadow .2s,color .15s}
+.fp-field:focus-within{outline:0;border-color:var(--accent);box-shadow:var(--glow-accent)}
+.app-select:focus-within{outline:0;box-shadow:var(--glow-accent)}
+.app-pj-entry:hover,.app-variant:hover{border-color:var(--line)}
+.app-fix summary::after{transition:transform .2s}
+
+@media (prefers-reduced-motion:no-preference){
+  /* Экран проявляется, списки — строками сверху вниз */
+  .app-view>*{animation:app-in .24s ease-out both}
+  .fp-list li,.app-pj-entry,.app-causes>li,.app-variant,.jr-table tbody tr,.app-dd-opt,.app-pick-row,.fp-case,.app-symptoms li{animation:app-in .26s ease-out both}
+  .fp-list li:nth-child(2),.app-pj-entry:nth-of-type(2):nth-child(2),.app-causes>li:nth-child(2),.app-variant:nth-child(2),.jr-table tbody tr:nth-child(2),.app-dd-opt:nth-child(2),.app-pick-row:nth-child(2),.fp-case:nth-child(2),.app-symptoms li:nth-child(2){animation-delay:.03s}
+  .fp-list li:nth-child(3),.app-pj-entry:nth-of-type(3):nth-child(3),.app-causes>li:nth-child(3),.app-variant:nth-child(3),.jr-table tbody tr:nth-child(3),.app-dd-opt:nth-child(3),.app-pick-row:nth-child(3),.fp-case:nth-child(3),.app-symptoms li:nth-child(3){animation-delay:.06s}
+  .fp-list li:nth-child(4),.app-pj-entry:nth-of-type(4):nth-child(4),.app-causes>li:nth-child(4),.app-variant:nth-child(4),.jr-table tbody tr:nth-child(4),.app-dd-opt:nth-child(4),.app-pick-row:nth-child(4),.fp-case:nth-child(4),.app-symptoms li:nth-child(4){animation-delay:.09s}
+  .fp-list li:nth-child(5),.app-pj-entry:nth-of-type(5):nth-child(5),.app-causes>li:nth-child(5),.app-variant:nth-child(5),.jr-table tbody tr:nth-child(5),.app-dd-opt:nth-child(5),.app-pick-row:nth-child(5),.fp-case:nth-child(5),.app-symptoms li:nth-child(5){animation-delay:.12s}
+  .fp-list li:nth-child(n+6),.app-pj-entry:nth-of-type(n+6):nth-child(n+6),.app-causes>li:nth-child(n+6),.jr-table tbody tr:nth-child(n+6),.app-dd-opt:nth-child(n+6),.app-pick-row:nth-child(n+6),.fp-case:nth-child(n+6){animation-delay:.15s}
+
+  /* Код на карточке «включается» как табло */
+  .app-hero-code,.nf-code{animation:app-crt .55s steps(1,end) both}
+  .app-variant-code,.app-pj-codes{animation:app-crt .45s steps(1,end) both}
+
+  /* Переписка с ИИ: вопрос выезжает справа, ответ проявляется блоками */
+  .ch-q{animation:app-from-right .25s ease-out both}
+  .ch-a .lft-window{animation:app-boot .3s ease-out both}
+  .ch-a .lft-window__body>*{animation:app-in .3s ease-out both}
+  .ch-a .lft-window__body>*:nth-child(2){animation-delay:.08s}
+  .ch-a .lft-window__body>*:nth-child(3){animation-delay:.16s}
+  .ch-a .lft-window__body>*:nth-child(4){animation-delay:.24s}
+  .ch-a .lft-window__body>*:nth-child(n+5){animation-delay:.32s}
+  .lft-step__n{animation:app-pop .3s ease-out both}
+
+  /* Кнопки утапливаются, занятая кнопка «бежит» полосами */
+  .lft-btn:active:not(:disabled){transform:translateY(1px) scale(.985)}
+  .lft-btn[aria-busy="true"]{animation:app-stripes .6s linear infinite}
+
+  /* Ошибка в поле — короткая дрожь (анимация запускается, когда сообщение появляется) */
+  .app-field-error:not([hidden]),.form__error:not([hidden]){animation:app-shake .32s ease-in-out}
+
+  /* Раскрытие ремонта */
+  .app-fix[open] .app-fix-body{animation:app-in .2s ease-out both}
+
+  /* Выбор: номер лифта, фильтры, механик */
+  .app-liftno[aria-pressed="true"],.app-type[aria-pressed="true"],.app-pick-row[aria-pressed="true"]{animation:app-pop .22s ease-out}
+
+  /* Нижняя панель: иконка выбранного раздела подпрыгивает */
+  .app-tabs a.on .lft-icon,.fp-nav a.on{animation:app-bump .32s ease-out}
+
+  /* Повторы растут, связь «дышит» */
+  .jr-bar i{transform-origin:left center;animation:app-grow .6s cubic-bezier(.2,.8,.2,1) both}
+  .jr-bar:nth-child(2) i{animation-delay:.05s}
+  .jr-bar:nth-child(3) i{animation-delay:.1s}
+  .jr-bar:nth-child(n+4) i{animation-delay:.15s}
+  .app-status.lft-badge--ok .lft-icon{animation:app-beat 2.4s ease-in-out infinite}
+  .app-likely .app-meter{animation:app-grow .5s ease-out both;transform-origin:left center}
+
+  /* Шторки и окна */
+  .app-dd:not(.app-dd--sheet){animation:app-drop .16s ease-out both}
+  .app-dd-backdrop{animation:app-fade .2s ease-out both}
+  .app-login>*{animation:app-in .35s ease-out both}
+  .app-login>*:nth-child(2){animation-delay:.06s}
+  .app-login>*:nth-child(3){animation-delay:.12s}
+  .app-login>*:nth-child(n+4){animation-delay:.18s}
+  .app-login-mark{animation:app-crt .7s steps(1,end) both}
+}
+
+/* «Записано»: галочка с расходящимся кольцом */
+.app-done{position:relative;width:64px;height:64px;display:grid;place-items:center;color:var(--ok);border:1px solid var(--ok);border-radius:50%;margin:4px auto 0}
+.app-done .lft-icon{width:32px;height:32px}
+@media (prefers-reduced-motion:no-preference){
+  .app-done{animation:app-pop .35s ease-out both}
+  .app-done::after{content:"";position:absolute;inset:-1px;border:1px solid var(--ok);border-radius:50%;animation:app-ring 1s ease-out .15s both}
+}
+
+@keyframes app-in{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
+@keyframes app-from-right{from{opacity:0;transform:translateX(16px)}to{opacity:1;transform:none}}
+@keyframes app-boot{from{opacity:0;clip-path:inset(0 0 100% 0)}to{opacity:1;clip-path:inset(0 0 0 0)}}
+@keyframes app-crt{0%{opacity:0}15%{opacity:1}25%{opacity:.25}40%{opacity:1}55%{opacity:.6}70%,100%{opacity:1}}
+@keyframes app-pop{0%{transform:scale(.9)}60%{transform:scale(1.06)}100%{transform:none}}
+@keyframes app-bump{0%{transform:none}40%{transform:translateY(-4px)}100%{transform:none}}
+@keyframes app-shake{0%,100%{transform:none}20%{transform:translateX(-5px)}40%{transform:translateX(4px)}60%{transform:translateX(-3px)}80%{transform:translateX(2px)}}
+@keyframes app-grow{from{transform:scaleX(0)}to{transform:scaleX(1)}}
+@keyframes app-beat{0%,70%,100%{opacity:1}35%{opacity:.35}}
+@keyframes app-stripes{to{background-position:28px 0}}
+@keyframes app-drop{from{opacity:0;transform:translateY(-6px)}to{opacity:1;transform:none}}
+@keyframes app-fade{from{opacity:0}}
+@keyframes app-ring{from{transform:scale(1);opacity:.9}to{transform:scale(1.8);opacity:0}}
