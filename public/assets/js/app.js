@@ -161,12 +161,16 @@
         return page(0);
     }
 
-    // Модели сгруппированы по производителю, как в списке кодов
+    // Модели сгруппированы по производителю, как в списке кодов. Модели без кодов не
+    // показываем (кроме уже выбранной, чтобы фильтр не сбросился молча).
     function modelOptions(models, selected) {
         var html = '<option value="">Все модели</option>';
         var makers = [];
         var byMaker = {};
         $.each(models, function (_, m) {
+            if (m.codes_count === 0 && String(m.id) !== String(selected || '')) {
+                return;
+            }
             var maker = m.manufacturer.name;
             if (!byMaker[maker]) {
                 byMaker[maker] = [];
