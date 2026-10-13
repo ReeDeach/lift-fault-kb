@@ -10,9 +10,9 @@ body{background:var(--ground);color:var(--ink);font-family:var(--font-sans);marg
 :focus-visible{outline:2px solid var(--ink);outline-offset:2px}
 
 .lft-btn{font-family:var(--font-mono);font-size:13px;font-weight:500;letter-spacing:.08em;text-transform:uppercase;padding:12px 20px;border:1px solid var(--accent);border-radius:var(--radius-none);background:var(--accent);color:var(--on-accent);cursor:pointer}
-.lft-btn:hover{background:var(--ink);border-color:var(--ink)}
+@media (hover:hover){.lft-btn:hover{background:var(--ink);border-color:var(--ink)}}
 .lft-btn--ghost{background:transparent;color:var(--accent);border-color:var(--line)}
-.lft-btn--ghost:hover{background:var(--surface-raised);color:var(--ink)}
+@media (hover:hover){.lft-btn--ghost:hover{background:var(--surface-raised);color:var(--ink)}}
 .lft-btn--signal{background:var(--signal);border-color:var(--signal);color:var(--on-accent)}
 .lft-btn:disabled{background:var(--surface-raised);border-color:var(--line-faint);color:var(--muted);cursor:not-allowed}
 
@@ -360,13 +360,22 @@ a.app-hit:hover .app-hit-title{color:var(--accent)}
 .app-examples{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
 .app-example{height:auto;min-height:36px;padding:8px 12px;background:transparent;color:var(--ink);cursor:pointer;text-align:left;font-size:12px}
 .app-example:hover{border-color:var(--accent);color:var(--accent)}
-.app-ai-form{position:sticky;bottom:0;background:var(--ground);flex-wrap:wrap;align-items:stretch}
-.app-ai-text{height:auto;min-height:48px;align-items:flex-start;padding-top:12px;padding-bottom:12px}
-.app-ai-text textarea{resize:vertical;min-height:24px;line-height:22px;font-size:15px}
+.app-ai-form{position:sticky;bottom:0;z-index:5;background:var(--ground);flex-direction:column;align-items:stretch;gap:10px;max-width:960px;width:100%;margin:0 auto;border-top:1px solid var(--line)}
+.app-ai-bar{display:flex;justify-content:space-between;align-items:center;gap:12px}
+.app-ai-toggle,.app-ai-new{display:inline-flex;gap:6px;align-items:center;background:transparent;border:0;padding:4px 0;cursor:pointer;color:var(--muted)}
+.app-ai-toggle{pointer-events:none}
+.app-ai-new{color:var(--accent)}
+.app-ai-new[hidden]{display:none}
+.app-ai-opts{display:flex;gap:12px}
+.app-ai-row{display:flex;gap:12px;align-items:flex-end}
+.app-ai-text{flex:1;height:auto;min-height:48px;align-items:center;padding-top:12px;padding-bottom:12px}
+.app-ai-text textarea{resize:none;height:24px;max-height:132px;line-height:22px;font-size:15px;overflow-y:auto}
+.app-ai-send{display:inline-flex;gap:8px;align-items:center;justify-content:center;height:48px}
+.app-ai-send .lft-icon{width:16px;height:16px}
 .app-ai-code{width:180px}
 .app-ai-code input{font-family:var(--font-mono);text-transform:uppercase}
 .app-ai-code input::placeholder{text-transform:none}
-.app-ai-form .app-field-error{left:40px;bottom:2px}
+.app-ai-form .app-field-error{position:static}
 .app-ai-summary{font-size:16px;line-height:24px}
 .app-ai-wait .ch-meter i{animation:app-meter 1.6s steps(8) infinite}
 @keyframes app-meter{from{width:8%}to{width:100%}}
@@ -454,12 +463,20 @@ body.app-dd-lock{overflow:hidden}
   .app-hit-code{font-size:34px}
   .ch-thread{padding:16px}
   .ch-input{padding:12px 16px}
-  /* На телефоне форма стоит над перепиской и не прилипает: иначе закрывает пол-экрана */
-  .app-ai-form{position:static;order:-1;border-top:0;border-bottom:1px solid var(--line)}
-  .app-ai-text{flex-basis:100%}
-  .app-ai-code{width:auto;flex:1 1 40%}
-  .app-ai-form .app-select{flex:1 1 100%}
-  .app-ai-form .lft-btn{flex-basis:100%}
+  /* На телефоне внизу одна строка ввода, код и модель свёрнуты в сводку над ней */
+  .app-ai-form{bottom:64px;padding:10px 16px 12px;gap:8px}
+  .app-ai-toggle{pointer-events:auto;min-width:0;overflow:hidden;white-space:nowrap}
+  .app-ai-toggle span:last-child{overflow:hidden;text-overflow:ellipsis}
+  .app-ai-toggle::after{content:"";width:6px;height:6px;margin-left:4px;flex:none;border-right:2px solid var(--accent);border-bottom:2px solid var(--accent);transform:translateY(-2px) rotate(45deg)}
+  .app-ai-toggle[aria-expanded="true"]::after{transform:translateY(2px) rotate(-135deg)}
+  .app-ai-opts{display:none;flex-direction:column;gap:8px}
+  .app-ai-form.is-open .app-ai-opts{display:flex}
+  .app-ai-code{width:auto}
+  .app-ai-row{gap:8px}
+  .app-ai-text{min-height:44px;padding-top:10px;padding-bottom:10px}
+  .app-ai-send{width:48px;height:44px;padding:0;flex:none}
+  .app-ai-send span:not(.lft-icon){display:none}
+  .app-ai-send .lft-icon{width:20px;height:20px}
   .app-ai-form .app-field-error{position:static}
   .app-tabs{display:grid;grid-template-columns:repeat(4,1fr);position:fixed;left:0;right:0;bottom:0;height:64px;background:var(--ground);border-top:1px solid var(--line);z-index:10}
   .app-tabs a{display:grid;justify-items:center;align-content:center;gap:4px;color:var(--muted);text-decoration:none;font:500 10px/1 var(--font-mono);letter-spacing:.06em;text-transform:uppercase}

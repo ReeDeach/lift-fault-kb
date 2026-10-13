@@ -817,7 +817,28 @@
 
     // ---------- Экран «ИИ-диагностика» ----------
 
-    var aiThread = [];
+    // Переписка живёт, пока открыта вкладка, и переживает переход между разделами.
+    // API не помнит прошлых запросов, поэтому уточнение отправляется вместе со всеми
+    // предыдущими сообщениями этой переписки: «двери при этом открыты» без исходного
+    // описания ничего бы не значило.
+    var AI_MAX_LENGTH = 2000;
+    var AI_STORE = 'lft:ai';
+    var ai = { thread: [], messages: [], code: '', model: null };
+
+    // Браузер на телефоне перезагружает вкладку после возврата из другого приложения,
+    // поэтому переписка хранится в sessionStorage: живёт, пока открыта вкладка
+    function saveAi() {
+        try {
+            sessionStorage.setItem(AI_STORE, JSON.stringify(ai));
+        } catch (e) { /* приватный режим или переполнение: переписка просто не сохранится */ }
+    }
+
+    try {
+        var stored = JSON.parse(sessionStorage.getItem(AI_STORE) || 'null');
+        if (stored && $.isArray(stored.thread) && $.isArray(stored.messages)) {
+            ai = $.extend(ai, stored);
+        }
+    } catch (e) { /* нет доступа к хранилищу */ }
 
     function renderAi(token) {
         var examples = '';
@@ -832,62 +853,104 @@
             + '<span class="lft-window__x" aria-hidden="true">×</span></div><div class="lft-window__body">'
             + '<p class="app-text">Опишите, что видите и слышите, и добавьте код с пульта, если он есть. Код можно написать и прямо в тексте: «ошибка 49, 50».</p>'
             + '<div class="nf-act">' + icon('journal', 'lft-icon--48') + '<span>Причины подбираются только из базы: руководства производителей и журнал</span></div>'
-            + '<div class="nf-act">' + icon('chip', 'lft-icon--48') + '<span>ИИ расставляет их по вероятности, объясняет и задаёт уточняющие вопросы</span></div>'
+            + '<div class="nf-act">' + icon('chip', 'lft-icon--48') + '<span>ИИ расставляет их по вероятности, объясняет и задаёт уточняющие вопросы. Отвечайте на них здесь же</span></div>'
             + '<div class="nf-act">' + icon('warning', 'lft-icon--48') + '<span>Ответ справочный: работы выполняет допущенный персонал</span></div>'
             + '<div class="app-examples"><span class="lft-label">Например</span>' + examples + '</div>'
             + '</div></div>'
             + '</div>'
             + '<form class="ch-input app-ai-form" id="ai-form">'
-            + '<label class="fp-field app-ai-text">' + icon('chip')
-            + '<textarea class="app-input" id="ai-text" rows="2" maxlength="2000" placeholder="Что происходит с лифтом" aria-label="Описание неисправности"></textarea></label>'
+            + '<div class="app-ai-bar">'
+            + '<button type="button" class="app-ai-toggle lft-label" id="ai-toggle" aria-expanded="false" aria-controls="ai-opts">'
+            + icon('settings', 'lft-icon--12') + '<span id="ai-summary"></span></button>'
+            + '<button type="button" class="app-ai-new lft-label" id="ai-new" hidden>' + icon('close', 'lft-icon--12') + 'Новый разбор</button>'
+            + '</div>'
+            + '<div class="app-ai-opts" id="ai-opts">'
             + '<label class="fp-chip app-ai-code">' + icon('code')
             + '<input class="app-input" id="ai-code" maxlength="64" placeholder="Код: 44 C6" aria-label="Код с пульта" autocomplete="off" autocapitalize="characters" autocorrect="off" spellcheck="false"></label>'
             + '<label class="fp-chip app-select">' + icon('factory')
             + '<select id="ai-model" aria-label="Модель лифта"><option value="">Загрузка моделей…</option></select></label>'
-            + '<button class="lft-btn" type="submit" id="ai-send">Разобрать</button>'
+            + '</div>'
+            + '<div class="app-ai-row">'
+            + '<label class="fp-field app-ai-text">'
+            + '<textarea class="app-input" id="ai-text" rows="1" maxlength="' + AI_MAX_LENGTH + '" placeholder="Что происходит с лифтом" aria-label="Сообщение"></textarea></label>'
+            + '<button class="lft-btn app-ai-send" type="submit" id="ai-send" aria-label="Отправить">' + icon('arrow-up') + '<span>Разобрать</span></button>'
+            + '</div>'
             + '<p class="app-field-error lft-label" id="ai-error" hidden></p>'
             + '</form>'
             + '</div>'
         );
 
-        // История текущей сессии переживает переход между разделами
-        $.each(aiThread, function (_, html) {
+        $.each(ai.thread, function (_, html) {
             $('#ai-thread').append(html);
         });
-        if (aiThread.length) {
+        if (ai.thread.length) {
             $('.app-ai-intro').remove();
         }
+        $('#ai-code').val(ai.code);
+        updateAiForm();
 
         loadModels().then(function (models) {
             if (token === renderToken) {
-                $('#ai-model').html(modelOptions(models, currentRoute().params.model || '')).trigger('lft:refresh');
+                var selected = ai.model !== null ? ai.model : (currentRoute().params.model || '');
+                $('#ai-model').html(modelOptions(models, selected)).trigger('lft:refresh');
+                updateAiForm();
             }
         });
+
+        if (ai.thread.length) {
+            var last = $('#ai-thread').children().last()[0];
+            if (last) {
+                last.scrollIntoView({ block: 'start' });
+            }
+        }
+    }
+
+    // Сводка параметров над полем ввода и подсказки в зависимости от того, начата ли переписка
+    function updateAiForm() {
+        var model = $('#ai-model option:selected');
+        var modelText = model.data('name') ? model.data('maker') + ' · ' + model.data('name') : 'все модели';
+        var code = $.trim($('#ai-code').val());
+        $('#ai-summary').text((code ? 'Код ' + code : 'Без кода') + ' · ' + modelText);
+        $('#ai-new').prop('hidden', !ai.messages.length);
+        $('#ai-text').attr('placeholder', ai.messages.length ? 'Уточнение или ответ на вопрос' : 'Что происходит с лифтом');
+    }
+
+    function growTextarea(el) {
+        el.style.height = 'auto';
+        el.style.height = Math.min(el.scrollHeight, 132) + 'px';
+    }
+
+    // Всё сказанное в переписке одним описанием; если длинно — без самых старых сообщений
+    function aiDescription(text) {
+        var parts = ai.messages.concat([text]);
+        var joined = parts.join('. ');
+        while (joined.length > AI_MAX_LENGTH && parts.length > 1) {
+            parts.shift();
+            joined = parts.join('. ');
+        }
+        return joined.slice(0, AI_MAX_LENGTH);
     }
 
     function submitAi() {
-        var description = $.trim($('#ai-text').val());
+        var text = $.trim($('#ai-text').val());
         var code = $.trim($('#ai-code').val());
         var model = $('#ai-model').val();
         var $error = $('#ai-error');
+        var followUp = ai.messages.length > 0;
 
-        if (description.length < 10) {
-            $error.text('Опишите неисправность подробнее: не короче 10 символов').prop('hidden', false);
+        if (!text || (!followUp && text.length < 10)) {
+            $error.text(followUp ? 'Напишите уточнение' : 'Опишите неисправность подробнее: не короче 10 символов').prop('hidden', false);
             return;
         }
         $error.prop('hidden', true);
 
         var modelName = model ? $('#ai-model option:selected').text().replace(/\s*\(\d+\)$/, '') : 'все модели';
-        var question = '<div class="ch-q"><span class="lft-label">Вы · ' + esc(modelName) + (code ? ' · код ' + esc(code) : '') + '</span>' + esc(description) + '</div>';
+        var question = '<div class="ch-q"><span class="lft-label">' + (followUp ? 'Уточнение' : 'Вы') + ' · ' + esc(modelName)
+            + (code ? ' · код ' + esc(code) : '') + '</span>' + esc(text) + '</div>';
         var $pending = $('<div class="ch-progress app-ai-wait"><div><span class="lft-label">Ищем в базе, спрашиваем ИИ</span>'
             + '<span class="lft-label app-accent">до 30 с</span></div><div class="ch-meter"><i></i></div></div>');
 
-        $('.app-ai-intro').remove();
-        $('#ai-thread').append(question).append($pending);
-        $('#ai-send').prop('disabled', true);
-        $pending[0].scrollIntoView({ block: 'end', behavior: 'smooth' });
-
-        var body = { description: description };
+        var body = { description: aiDescription(text) };
         if (code) {
             body.code = code;
         }
@@ -895,20 +958,34 @@
             body.model = model;
         }
 
+        $('.app-ai-intro').remove();
+        $('#ai-thread').append(question).append($pending);
+        $('#ai-send').prop('disabled', true);
+        $('#ai-text').val('');
+        growTextarea($('#ai-text')[0]);
+        $pending[0].scrollIntoView({ block: 'end', behavior: 'smooth' });
+
         apiPost('/api/diagnose', body).then(function (data) {
             var answer = aiAnswerHtml(data);
-            aiThread.push(question, answer);
+            ai.thread.push(question, answer);
+            ai.messages.push(text);
+            saveAi();
             var $answer = $(answer);
             $pending.replaceWith($answer);
-            $answer[0].scrollIntoView({ block: 'start', behavior: 'smooth' });
+            // К вопросу, а не к ответу: видно и что спросили, и начало ответа
+            ($answer.prev('.ch-q')[0] || $answer[0]).scrollIntoView({ block: 'start', behavior: 'smooth' });
         }, function (error) {
-            var html = '<div class="ch-a">' + errorWindow(error, 'Диагностика') + '</div>';
+            // Неудачный запрос не попадает в переписку: текст возвращается в поле
+            $pending.prev('.ch-q').remove();
+            $pending.replaceWith('<div class="ch-a app-ai-failed">' + errorWindow(error, 'Диагностика') + '</div>');
+            $('#ai-text').val(text);
+            growTextarea($('#ai-text')[0]);
             if (error.status === 400 && Object.keys(error.fields).length) {
                 $error.text($.map(error.fields, function (t) { return t; }).join(' · ')).prop('hidden', false);
             }
-            $pending.replaceWith(html);
         }).always(function () {
             $('#ai-send').prop('disabled', false);
+            updateAiForm();
         });
     }
 
@@ -1126,16 +1203,47 @@
             submitAi();
         })
         .on('keydown', '#ai-text', function (e) {
-            // Ctrl+Enter или Cmd+Enter отправляет, обычный Enter переносит строку
-            if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) {
+            // С клавиатурой Enter отправляет, Shift+Enter переносит строку.
+            // На телефоне Enter переносит строку, отправка — кнопкой.
+            var desktop = window.matchMedia('(hover: hover) and (pointer: fine)').matches;
+            if (e.key === 'Enter' && ((desktop && !e.shiftKey) || e.ctrlKey || e.metaKey)) {
                 e.preventDefault();
                 submitAi();
             }
+        })
+        .on('input', '#ai-text', function () {
+            growTextarea(this);
+        })
+        .on('input', '#ai-code', function () {
+            ai.code = $.trim($(this).val());
+            saveAi();
+            updateAiForm();
+        })
+        .on('change', '#ai-model', function () {
+            ai.model = $(this).val();
+            saveAi();
+            updateAiForm();
+        })
+        .on('click', '#ai-toggle', function () {
+            var open = $(this).attr('aria-expanded') !== 'true';
+            $(this).attr('aria-expanded', String(open));
+            $('#ai-form').toggleClass('is-open', open);
+        })
+        .on('click', '#ai-new', function () {
+            ai.thread = [];
+            ai.messages = [];
+            saveAi();
+            renderAi(renderToken);
+            $view.find('.app-select select').each(function () {
+                customSelect(this);
+            });
+            window.scrollTo(0, 0);
         })
         .on('click', '[data-example]', function () {
             var ex = AI_EXAMPLES[Number($(this).data('example'))];
             $('#ai-text').val(ex.d);
             $('#ai-code').val(ex.c);
+            ai.code = ex.c;
             submitAi();
         });
 
