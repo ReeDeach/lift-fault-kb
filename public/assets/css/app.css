@@ -555,3 +555,98 @@ a.app-type{display:inline-flex;align-items:center;text-decoration:none}
   .app-tabs a.on{color:var(--accent);box-shadow:inset 0 2px 0 var(--accent)}
   body{padding-bottom:64px}
 }
+
+/* ==========================================================================
+   Микроанимации и состояния. Всё движение — только когда пользователь не просил
+   его уменьшить (prefers-reduced-motion). Смена цвета, рамки и свечения остаётся всегда.
+   ========================================================================== */
+
+/* Состояния, работающие при любых настройках */
+.lft-btn{transition:background-color .15s,border-color .15s,color .15s,box-shadow .15s,transform .08s}
+.lft-btn:focus-visible{outline:0;box-shadow:var(--glow-accent)}
+.lft-btn[aria-busy="true"]{cursor:progress;background:repeating-linear-gradient(-45deg,var(--accent) 0 10px,#e04a12 10px 20px);background-size:28px 28px;border-color:var(--accent);color:var(--on-accent)}
+.fp-field,.fp-chip,.app-draft-input,.app-pick-row,.app-liftno,.app-type,.app-example,.app-hit,.app-variant,.app-pj-entry{transition:border-color .15s,background-color .15s,box-shadow .2s,color .15s}
+.fp-field:focus-within{outline:0;border-color:var(--accent);box-shadow:var(--glow-accent)}
+.app-select:focus-within{outline:0;box-shadow:var(--glow-accent)}
+.app-pj-entry:hover,.app-variant:hover{border-color:var(--line)}
+.app-fix summary::after{transition:transform .2s}
+
+@media (prefers-reduced-motion:no-preference){
+  /* Экран проявляется, списки — строками сверху вниз */
+  .app-view>*{animation:app-in .24s ease-out both}
+  .fp-list li,.app-pj-entry,.app-hits>li,.app-causes>li,.app-variant,.jr-table tbody tr,.app-dd-opt,.app-pick-row,.fp-case,.app-symptoms li{animation:app-in .26s ease-out both}
+  .fp-list li:nth-child(2),.app-pj-entry:nth-of-type(2),.app-hits>li:nth-child(2),.app-causes>li:nth-child(2),.app-variant:nth-child(2),.jr-table tbody tr:nth-child(2),.app-dd-opt:nth-child(2),.app-pick-row:nth-child(2),.fp-case:nth-child(2),.app-symptoms li:nth-child(2){animation-delay:.03s}
+  .fp-list li:nth-child(3),.app-pj-entry:nth-of-type(3),.app-hits>li:nth-child(3),.app-causes>li:nth-child(3),.app-variant:nth-child(3),.jr-table tbody tr:nth-child(3),.app-dd-opt:nth-child(3),.app-pick-row:nth-child(3),.fp-case:nth-child(3),.app-symptoms li:nth-child(3){animation-delay:.06s}
+  .fp-list li:nth-child(4),.app-pj-entry:nth-of-type(4),.app-hits>li:nth-child(4),.app-causes>li:nth-child(4),.app-variant:nth-child(4),.jr-table tbody tr:nth-child(4),.app-dd-opt:nth-child(4),.app-pick-row:nth-child(4),.fp-case:nth-child(4),.app-symptoms li:nth-child(4){animation-delay:.09s}
+  .fp-list li:nth-child(5),.app-pj-entry:nth-of-type(5),.app-hits>li:nth-child(5),.app-causes>li:nth-child(5),.app-variant:nth-child(5),.jr-table tbody tr:nth-child(5),.app-dd-opt:nth-child(5),.app-pick-row:nth-child(5),.fp-case:nth-child(5),.app-symptoms li:nth-child(5){animation-delay:.12s}
+  .fp-list li:nth-child(n+6),.app-pj-entry:nth-of-type(n+6),.app-hits>li:nth-child(n+6),.app-causes>li:nth-child(n+6),.jr-table tbody tr:nth-child(n+6),.app-dd-opt:nth-child(n+6),.app-pick-row:nth-child(n+6),.fp-case:nth-child(n+6){animation-delay:.15s}
+
+  /* Код на карточке «включается» как табло */
+  .app-hero-code,.nf-code{animation:app-crt .55s steps(1,end) both}
+  .app-hit-code,.app-variant-code,.app-pj-codes{animation:app-crt .45s steps(1,end) both}
+
+  /* Переписка с ИИ: вопрос выезжает справа, ответ проявляется блоками */
+  .ch-q{animation:app-from-right .25s ease-out both}
+  .ch-a .lft-window{animation:app-boot .3s ease-out both}
+  .ch-a .lft-window__body>*{animation:app-in .3s ease-out both}
+  .ch-a .lft-window__body>*:nth-child(2){animation-delay:.08s}
+  .ch-a .lft-window__body>*:nth-child(3){animation-delay:.16s}
+  .ch-a .lft-window__body>*:nth-child(4){animation-delay:.24s}
+  .ch-a .lft-window__body>*:nth-child(n+5){animation-delay:.32s}
+  .lft-step__n{animation:app-pop .3s ease-out both}
+
+  /* Кнопки утапливаются, занятая кнопка «бежит» полосами */
+  .lft-btn:active:not(:disabled){transform:translateY(1px) scale(.985)}
+  .lft-btn[aria-busy="true"]{animation:app-stripes .6s linear infinite}
+
+  /* Ошибка в поле — короткая дрожь (анимация запускается, когда сообщение появляется) */
+  .app-field-error:not([hidden]),.form__error:not([hidden]){animation:app-shake .32s ease-in-out}
+
+  /* Раскрытие ремонта */
+  .app-fix[open] .app-fix-body{animation:app-in .2s ease-out both}
+
+  /* Выбор: номер лифта, фильтры, механик */
+  .app-liftno[aria-pressed="true"],.app-type[aria-pressed="true"],.app-pick-row[aria-pressed="true"]{animation:app-pop .22s ease-out}
+
+  /* Нижняя панель: иконка выбранного раздела подпрыгивает */
+  .app-tabs a.on .lft-icon,.fp-nav a.on{animation:app-bump .32s ease-out}
+
+  /* Повторы растут, связь «дышит» */
+  .jr-bar i{transform-origin:left center;animation:app-grow .6s cubic-bezier(.2,.8,.2,1) both}
+  .jr-bar:nth-child(2) i{animation-delay:.05s}
+  .jr-bar:nth-child(3) i{animation-delay:.1s}
+  .jr-bar:nth-child(n+4) i{animation-delay:.15s}
+  .app-status.lft-badge--ok .lft-icon{animation:app-beat 2.4s ease-in-out infinite}
+  .app-likely .app-meter{animation:app-grow .5s ease-out both;transform-origin:left center}
+
+  /* Шторки и окна */
+  .app-dd:not(.app-dd--sheet){animation:app-drop .16s ease-out both}
+  .app-dd-backdrop{animation:app-fade .2s ease-out both}
+  .app-login>*{animation:app-in .35s ease-out both}
+  .app-login>*:nth-child(2){animation-delay:.06s}
+  .app-login>*:nth-child(3){animation-delay:.12s}
+  .app-login>*:nth-child(n+4){animation-delay:.18s}
+  .app-login-mark{animation:app-crt .7s steps(1,end) both}
+}
+
+/* «Записано»: галочка с расходящимся кольцом */
+.app-done{position:relative;width:64px;height:64px;display:grid;place-items:center;color:var(--ok);border:1px solid var(--ok);border-radius:50%;margin:4px auto 0}
+.app-done .lft-icon{width:32px;height:32px}
+@media (prefers-reduced-motion:no-preference){
+  .app-done{animation:app-pop .35s ease-out both}
+  .app-done::after{content:"";position:absolute;inset:-1px;border:1px solid var(--ok);border-radius:50%;animation:app-ring 1s ease-out .15s both}
+}
+
+@keyframes app-in{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
+@keyframes app-from-right{from{opacity:0;transform:translateX(16px)}to{opacity:1;transform:none}}
+@keyframes app-boot{from{opacity:0;clip-path:inset(0 0 100% 0)}to{opacity:1;clip-path:inset(0 0 0 0)}}
+@keyframes app-crt{0%{opacity:0}15%{opacity:1}25%{opacity:.25}40%{opacity:1}55%{opacity:.6}70%,100%{opacity:1}}
+@keyframes app-pop{0%{transform:scale(.9)}60%{transform:scale(1.06)}100%{transform:none}}
+@keyframes app-bump{0%{transform:none}40%{transform:translateY(-4px)}100%{transform:none}}
+@keyframes app-shake{0%,100%{transform:none}20%{transform:translateX(-5px)}40%{transform:translateX(4px)}60%{transform:translateX(-3px)}80%{transform:translateX(2px)}}
+@keyframes app-grow{from{transform:scaleX(0)}to{transform:scaleX(1)}}
+@keyframes app-beat{0%,70%,100%{opacity:1}35%{opacity:.35}}
+@keyframes app-stripes{to{background-position:28px 0}}
+@keyframes app-drop{from{opacity:0;transform:translateY(-6px)}to{opacity:1;transform:none}}
+@keyframes app-fade{from{opacity:0}}
+@keyframes app-ring{from{transform:scale(1);opacity:.9}to{transform:scale(1.8);opacity:0}}

@@ -703,6 +703,31 @@
             + '<section class="fp-side"><div><h2 class="fp-h app-h-icon">' + icon('journal') + 'Повторы</h2>' + bars
             + '<p class="lft-label app-note">По каждому коду API отдаёт до 5 последних случаев</p></div></section>'
             + '</div>');
+        countUp($('#journal-body'));
+    }
+
+    // Числа сводки досчитываются от нуля. При «уменьшить движение» — сразу итог.
+    function countUp($root) {
+        if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+            return;
+        }
+        $root.find('.jr-num').each(function () {
+            var node = this.firstChild;
+            var target = node && node.nodeType === 3 ? parseInt(node.nodeValue, 10) : NaN;
+            if (!(target > 0)) {
+                return;
+            }
+            var start = performance.now();
+            var step = function (now) {
+                var k = Math.min(1, (now - start) / 600);
+                node.nodeValue = String(Math.round(target * (1 - Math.pow(1 - k, 3))));
+                if (k < 1) {
+                    requestAnimationFrame(step);
+                }
+            };
+            node.nodeValue = '0';
+            requestAnimationFrame(step);
+        });
     }
 
     function applyJournalFilter() {
@@ -972,7 +997,7 @@
 
         $('.app-ai-intro').remove();
         $('#ai-thread').append(question).append($pending);
-        $('#ai-send').prop('disabled', true);
+        $('#ai-send').prop('disabled', true).attr('aria-busy', 'true');
         $('#ai-text').val('');
         growTextarea($('#ai-text')[0]);
         $pending[0].scrollIntoView({ block: 'end', behavior: 'smooth' });
@@ -1005,7 +1030,7 @@
             }
         }).always(function () {
             clearInterval(elapsedTimer);
-            $('#ai-send').prop('disabled', false);
+            $('#ai-send').prop('disabled', false).removeAttr('aria-busy');
             updateAiForm();
         });
     }
@@ -1519,18 +1544,19 @@
             return 'Механик: ' + m + (a && a.summary ? '\nИИ: ' + a.summary : '');
         }).join('\n\n');
 
-        $('#save-submit').prop('disabled', true);
+        $('#save-submit').prop('disabled', true).attr('aria-busy', 'true');
         apiPost('/api/journal', body).then(function (data) {
             liftsRequest = null;
             $('.app-sheet .lft-window__body').html(
-                '<p class="fp-title">Записано</p>'
+                '<div class="app-done">' + icon('ok') + '</div>'
+                + '<p class="fp-title">Записано</p>'
                 + '<p class="app-text">' + esc(liftName(data.item.lift)) + '</p>'
                 + '<p class="app-text app-muted">' + esc(data.item.title) + '</p>'
                 + '<div class="app-login-actions"><a class="lft-btn" href="' + hashFor('journal', { lift: data.item.lift.id }) + '" data-close-sheet>Открыть журнал лифта</a>'
                 + '<button type="button" class="lft-btn lft-btn--ghost" id="save-new">Новый разбор</button></div>'
             );
         }, function (error) {
-            $('#save-submit').prop('disabled', false);
+            $('#save-submit').prop('disabled', false).removeAttr('aria-busy');
             $('#save-error').text($.map(error.fields || {}, function (t, k) { return k + ': ' + t; }).join(' · ') || error.message).prop('hidden', false);
         });
     }
