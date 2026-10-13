@@ -53,6 +53,17 @@ final class RateLimiter
     }
 
     /**
+     * Простой предел на пользователя в час для бесплатных действий (сообщения, фото):
+     * защита от заливки, а не экономия.
+     */
+    public function limit(Request $request, string $action, int $perHour, string $what): void
+    {
+        if ($this->count("$action:user:" . self::who($request), 3600) > $perHour) {
+            throw new HttpException(429, "Слишком часто: не больше $perHour $what в час. Попробуйте позже");
+        }
+    }
+
+    /**
      * Кто делает запрос: аккаунт Tailscale, демо-сессия или адрес клиента.
      */
     public static function who(Request $request): string

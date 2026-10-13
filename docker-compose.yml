@@ -17,6 +17,8 @@ services:
     working_dir: /var/www/html
     volumes:
       - ./:/var/www/html
+      # Фото к сообщениям: вне папки проекта, у демо свой том
+      - uploads:/var/www/uploads
     env_file:
       - .env
     depends_on:
@@ -51,3 +53,4 @@ services:
 volumes:
   mysql-data:
   manticore-data:
+  uploads:

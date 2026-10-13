@@ -18,7 +18,7 @@ body{background:var(--ground);color:var(--ink);font-family:var(--font-sans);marg
 
 .lft-code{display:grid;gap:var(--space-2);padding:var(--space-4) var(--space-6);border:1px solid var(--line);background:var(--ground)}
 .lft-code__num{font-family:var(--font-pixel);font-weight:400;font-size:144px;line-height:.9;color:var(--accent)}
-.lft-code--alarm .lft-code__num{color:var(--signal);text-shadow:0 0 14px rgba(255,46,136,.5)}
+.lft-code--alarm .lft-code__num{color:var(--signal);text-shadow:0 0 14px var(--code-glow)}
 .lft-code__name{font-family:var(--font-display);font-weight:800;font-size:15px;line-height:20px;text-transform:uppercase;color:var(--ink)}
 .lft-badge{display:inline-flex;gap:var(--space-1);align-items:center;font-family:var(--font-mono);font-size:11px;letter-spacing:.08em;text-transform:uppercase;padding:2px 6px;border-radius:var(--radius-sm);border:1px solid currentColor}
 .lft-badge--alarm{color:var(--signal)}
@@ -60,6 +60,11 @@ body{background:var(--ground);color:var(--ink);font-family:var(--font-sans);marg
 .lft-icon--search{-webkit-mask-image:url(../icons/search.svg);mask-image:url(../icons/search.svg)}
 .lft-icon--settings{-webkit-mask-image:url(../icons/settings.svg);mask-image:url(../icons/settings.svg)}
 .lft-icon--warning{-webkit-mask-image:url(../icons/warning.svg);mask-image:url(../icons/warning.svg)}
+.lft-icon--box{-webkit-mask-image:url(../icons/box.svg);mask-image:url(../icons/box.svg)}
+.lft-icon--camera{-webkit-mask-image:url(../icons/camera.svg);mask-image:url(../icons/camera.svg)}
+.lft-icon--chat{-webkit-mask-image:url(../icons/chat.svg);mask-image:url(../icons/chat.svg)}
+.lft-icon--moon{-webkit-mask-image:url(../icons/moon.svg);mask-image:url(../icons/moon.svg)}
+.lft-icon--sun{-webkit-mask-image:url(../icons/sun.svg);mask-image:url(../icons/sun.svg)}
 
 /* Каркас экранов: шапка, поиск, колонки, строка статуса (fp-…) */
 
@@ -90,7 +95,7 @@ body{background:var(--ground);color:var(--ink);font-family:var(--font-sans);marg
 .fp-list .lft-label{padding:0 24px 12px;display:block}
 .fp-main{padding:32px 40px!important}
 .fp-hero{display:grid;grid-template-columns:auto 1fr;gap:32px;align-items:end;padding-bottom:28px;border-bottom:1px solid var(--line)}
-.fp-hero .lft-code__num{font-family:var(--font-pixel);font-weight:400;font-size:190px;line-height:.8;color:var(--signal);text-shadow:0 0 18px rgba(255,46,136,.45)}
+.fp-hero .lft-code__num{font-family:var(--font-pixel);font-weight:400;font-size:190px;line-height:.8;color:var(--signal);text-shadow:0 0 18px var(--code-glow)}
 .fp-title{font-family:var(--font-display);font-weight:800;font-size:26px;line-height:1.1;text-transform:uppercase;color:var(--ink);margin:12px 0 12px!important}
 .fp-desc{font-size:15px;line-height:22px;color:var(--ink);max-width:560px}
 .fp-safety{display:flex;gap:12px;align-items:center;margin:24px 0 32px;padding:12px 16px;border:1px solid var(--accent);color:var(--accent);font-family:var(--font-mono);font-size:12px;letter-spacing:.06em;text-transform:uppercase}
@@ -150,7 +155,7 @@ body{background:var(--ground);color:var(--ink);font-family:var(--font-sans);marg
 .nf{position:relative;padding:56px 40px 40px;text-align:center;overflow:hidden}
 .nf-corner{position:absolute;display:grid;gap:4px;text-align:left}
 .nf-word{font-family:var(--font-display);font-weight:800;font-size:56px;line-height:1;text-transform:uppercase;color:var(--ink);margin:0}
-.nf-code{font-family:var(--font-pixel);font-weight:400;font-size:290px;line-height:.8;color:var(--signal);text-shadow:0 0 24px rgba(255,46,136,.45);margin:8px 0}
+.nf-code{font-family:var(--font-pixel);font-weight:400;font-size:290px;line-height:.8;color:var(--signal);text-shadow:0 0 24px var(--code-glow);margin:8px 0}
 .nf-sub{font-family:var(--font-mono);font-size:28px;letter-spacing:.08em;text-transform:uppercase;color:var(--signal);margin:0 0 40px}
 .nf-wins{display:flex;gap:24px;justify-content:center;align-items:flex-start;text-align:left}
 .nf-act{display:grid;grid-template-columns:48px 1fr;gap:16px;align-items:center;font-family:var(--font-mono);font-size:13px;line-height:18px;text-transform:uppercase;letter-spacing:.04em}
@@ -172,7 +177,7 @@ body{background:var(--ground);color:var(--ink);font-family:var(--font-sans);marg
 .mb-tabs a{display:grid;justify-items:center;align-content:center;gap:4px;color:var(--muted);text-decoration:none;font-family:var(--font-mono);font-size:10px;letter-spacing:.06em;text-transform:uppercase}
 .mb-tabs a.on{color:var(--accent);box-shadow:inset 0 2px 0 var(--accent)}
 .mb-hero{display:grid;grid-template-columns:auto 1fr;gap:16px;align-items:end;padding-bottom:16px;border-bottom:1px solid var(--line)}
-.mb-hero .lft-code__num{font-family:var(--font-pixel);font-weight:400;font-size:116px;line-height:.8;color:var(--signal);text-shadow:0 0 14px rgba(255,46,136,.45)}
+.mb-hero .lft-code__num{font-family:var(--font-pixel);font-weight:400;font-size:116px;line-height:.8;color:var(--signal);text-shadow:0 0 14px var(--code-glow)}
 .mb-title{font-family:var(--font-display);font-weight:800;font-size:18px;line-height:1.15;text-transform:uppercase;margin:8px 0 0!important}
 .mb-hints{display:grid;grid-template-columns:repeat(5,1fr);gap:6px}
 .mb-hints span{height:36px;display:grid;place-items:center;border:1px solid var(--line-faint);font-family:var(--font-mono);font-size:13px;color:var(--muted)}
@@ -279,7 +284,7 @@ body{background:var(--ground);color:var(--ink);font-family:var(--font-sans);marg
 
 /* Карточка кода */
 .app-hero-code{color:var(--accent);word-break:break-all}
-.app-hero-code--alarm{color:var(--signal);text-shadow:0 0 18px rgba(255,46,136,.45)}
+.app-hero-code--alarm{color:var(--signal);text-shadow:0 0 18px var(--code-glow)}
 .app-hero-meta{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
 .fp-main h1.fp-title{margin:12px 0}
 .app-h{margin-top:32px!important}
@@ -420,11 +425,11 @@ a.nf-act:hover span{color:var(--accent)}
 .app-dd-opt[aria-selected="true"]{box-shadow:inset 3px 0 0 var(--accent)}
 .app-dd-opt[aria-selected="true"] .app-dd-name{color:var(--accent)}
 .app-dd-opt[aria-selected="true"] .app-dd-count{color:var(--accent)}
-.app-dd--sheet{position:fixed;top:auto;left:0;right:0;bottom:0;z-index:51;width:auto;max-width:none;min-width:0;max-height:72vh;border-left:0;border-right:0;border-bottom:0;padding-bottom:env(safe-area-inset-bottom);box-shadow:0 -8px 32px rgba(0,0,0,.6);animation:app-sheet .18s ease-out}
+.app-dd--sheet{position:fixed;top:auto;left:0;right:0;bottom:0;z-index:51;width:auto;max-width:none;min-width:0;max-height:72vh;border-left:0;border-right:0;border-bottom:0;padding-bottom:env(safe-area-inset-bottom);box-shadow:0 -8px 32px var(--shadow);animation:app-sheet .18s ease-out}
 .app-dd--sheet .lft-window__bar{position:sticky;top:0;z-index:1;padding:12px 16px}
 .app-dd--sheet .app-dd-close{width:28px;height:28px;font-size:16px;background:transparent;cursor:pointer}
 .app-dd--sheet .app-dd-opt{padding:16px}
-.app-dd-backdrop{position:fixed;inset:0;z-index:50;background:rgba(14,12,11,.72)}
+.app-dd-backdrop{position:fixed;inset:0;z-index:50;background:var(--backdrop)}
 body.app-dd-lock{overflow:hidden}
 @keyframes app-sheet{from{transform:translateY(24px);opacity:0}}
 @media (prefers-reduced-motion:reduce){.app-dd--sheet{animation:none}}
@@ -577,7 +582,7 @@ a.app-type{display:inline-flex;align-items:center;text-decoration:none}
 /* Состояния, работающие при любых настройках */
 .lft-btn{transition:background-color .15s,border-color .15s,color .15s,box-shadow .15s,transform .08s}
 .lft-btn:focus-visible{outline:0;box-shadow:var(--glow-accent)}
-.lft-btn[aria-busy="true"]{cursor:progress;background:repeating-linear-gradient(-45deg,var(--accent) 0 10px,#e04a12 10px 20px);background-size:28px 28px;border-color:var(--accent);color:var(--on-accent)}
+.lft-btn[aria-busy="true"]{cursor:progress;background:repeating-linear-gradient(-45deg,var(--accent) 0 10px,var(--accent-stripe) 10px 20px);background-size:28px 28px;border-color:var(--accent);color:var(--on-accent)}
 .fp-field,.fp-chip,.app-draft-input,.app-pick-row,.app-liftno,.app-type,.app-example,.app-variant,.app-pj-entry{transition:border-color .15s,background-color .15s,box-shadow .2s,color .15s}
 .fp-field:focus-within{outline:0;border-color:var(--accent);box-shadow:var(--glow-accent)}
 .app-select:focus-within{outline:0;box-shadow:var(--glow-accent)}
@@ -663,3 +668,150 @@ a.app-type{display:inline-flex;align-items:center;text-decoration:none}
 @keyframes app-drop{from{opacity:0;transform:translateY(-6px)}to{opacity:1;transform:none}}
 @keyframes app-fade{from{opacity:0}}
 @keyframes app-ring{from{transform:scale(1);opacity:.9}to{transform:scale(1.8);opacity:0}}
+
+/* ---------- Связь: заявки и чат ---------- */
+/* Точка «есть новое» на вкладке */
+[data-page].has-new{position:relative}
+[data-page].has-new::after{content:"";position:absolute;top:6px;right:calc(50% - 20px);width:8px;height:8px;background:var(--accent);box-shadow:0 0 0 2px var(--ground)}
+.fp-nav [data-page].has-new::after{top:2px;right:-10px}
+
+.app-msgs{flex:1;display:grid;align-content:start;gap:10px;max-width:960px;width:100%;margin:0 auto;padding:16px 40px 24px}
+.app-chat-head{display:flex;justify-content:space-between;gap:12px;max-width:960px;width:100%;margin:0 auto;padding:20px 40px 0}
+.app-chat-head .lft-label{display:inline-flex;gap:6px;align-items:center}
+.app-day{display:flex;align-items:center;gap:12px;margin:10px 0 2px;color:var(--muted)}
+.app-day::before,.app-day::after{content:"";flex:1;border-top:1px solid var(--line-faint)}
+.app-msg{display:grid;justify-items:start}
+.app-msg.is-mine{justify-items:end}
+.app-msg-bubble{max-width:min(560px,86%);padding:10px 14px 12px;border:1px solid var(--line-faint);background:var(--surface);display:grid;gap:6px}
+.app-msg.is-mine .app-msg-bubble{background:var(--surface-raised);border-color:var(--line)}
+.app-msg.is-master .app-msg-bubble{box-shadow:inset 3px 0 0 var(--accent)}
+.app-msg-who{display:flex;flex-wrap:wrap;align-items:center;gap:6px;color:var(--muted)}
+.app-msg-who b{font-weight:500;color:var(--ink)}
+.app-msg.is-master .app-msg-who b{color:var(--accent)}
+.app-msg-who time{margin-left:auto;padding-left:8px}
+.app-msg-text{margin:0;font:400 15px/22px var(--font-sans);white-space:pre-wrap;overflow-wrap:anywhere}
+.app-msg-event{display:flex;align-items:center;gap:6px;justify-self:center;color:var(--muted);text-align:center;padding:4px 0}
+.app-msg-event .lft-icon{color:var(--accent);flex:none}
+
+.app-photos{display:grid;gap:4px;grid-template-columns:repeat(2,minmax(0,1fr));max-width:360px}
+.app-photos--1{grid-template-columns:minmax(0,1fr)}
+.app-photo{display:block;padding:0;border:1px solid var(--line-faint);background:var(--ground);cursor:zoom-in;aspect-ratio:1;overflow:hidden}
+.app-photos--1 .app-photo{aspect-ratio:auto;max-height:320px}
+.app-photo img{display:block;width:100%;height:100%;object-fit:cover}
+.app-photo:hover,.app-photo:focus-visible{border-color:var(--accent);outline:0}
+.app-viewer{position:fixed;inset:0;z-index:60;display:grid;place-items:center;padding:16px;background:var(--backdrop-strong);cursor:zoom-out}
+.app-viewer img{max-width:100%;max-height:100%;object-fit:contain;border:1px solid var(--line)}
+.app-viewer-x{position:absolute;top:16px;right:16px;width:36px;height:36px;font-size:18px;background:var(--surface);cursor:pointer}
+
+.app-attach{display:inline-flex;align-items:center;justify-content:center;flex:none;width:48px;height:48px;border:1px solid var(--line-faint);color:var(--ink);cursor:pointer}
+.app-attach input{display:none}
+.app-attach:hover,.app-attach:focus-within{border-color:var(--accent);color:var(--accent)}
+.app-attach.is-full{opacity:.4;pointer-events:none}
+.app-tray{display:flex;flex-wrap:wrap;gap:8px}
+.app-tray[hidden]{display:none}
+.app-tray-item{position:relative;width:64px;height:64px;border:1px solid var(--line)}
+.app-tray-item img{width:100%;height:100%;object-fit:cover;display:block}
+.app-tray-item.is-busy img{opacity:.35}
+.app-tray-item i{position:absolute;inset:0;display:grid;place-items:center;font-style:normal;color:var(--accent)}
+.app-tray-x{position:absolute;top:-8px;right:-8px;width:22px;height:22px;padding:0;border:1px solid var(--line);background:var(--surface);color:var(--ink);font:12px/1 var(--font-mono);cursor:pointer}
+
+.app-req-page{max-width:960px;width:100%;margin:0 auto}
+.app-req-head{display:flex;justify-content:space-between;align-items:flex-end;gap:16px;flex-wrap:wrap;margin-bottom:16px}
+.app-req-head .lft-label,.app-back{display:inline-flex;gap:6px;align-items:center}
+.app-back{color:var(--accent);text-decoration:none;margin-bottom:16px}
+.app-req-head .lft-btn{display:inline-flex;gap:8px;align-items:center}
+.app-req-list{list-style:none;margin:16px 0 0;padding:0;display:grid;gap:10px}
+.app-req{display:grid;gap:6px;padding:14px 16px;border:1px solid var(--line-faint);background:var(--surface);color:var(--ink);text-decoration:none}
+.app-req:hover,.app-req:focus-visible{border-color:var(--accent);outline:0}
+.app-req-top{display:flex;flex-wrap:wrap;align-items:center;gap:8px;margin:0}
+.app-req-top time,.app-req-top>.lft-label{margin-left:auto;color:var(--muted)}
+.app-req-title{font:600 16px/22px var(--font-sans)}
+.app-req-meta{color:var(--muted)}
+.app-req-last{font:400 14px/20px var(--font-sans);color:var(--muted);overflow:hidden;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical}
+.app-req-last b{color:var(--accent);font-weight:500}
+.app-req-count{display:inline-flex;align-items:center;gap:4px;color:var(--muted)}
+.app-req-count .lft-icon+*{margin-left:2px}
+.app-req-card{display:grid;gap:12px;padding:16px;border:1px solid var(--line);background:var(--surface)}
+.app-req-card .fp-title{margin:0}
+.app-req-facts{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:10px;margin:0}
+.app-req-facts div{display:grid;gap:4px}
+.app-req-facts dd{margin:0;font:400 15px/20px var(--font-sans)}
+.app-req-detail{padding-bottom:0}
+.app-req-rejected{display:flex;align-items:center;gap:6px;color:var(--signal)}
+.app-steps{list-style:none;margin:0;padding:0;display:grid;grid-template-columns:repeat(5,1fr);gap:4px}
+.app-steps li{display:grid;gap:6px}
+.app-steps i{display:block;height:6px;background:var(--line-faint)}
+.app-steps .is-done i{background:var(--accent);opacity:.5}
+.app-steps .is-now i{background:var(--accent)}
+.app-steps .lft-label{color:var(--muted);font-size:10px}
+.app-steps .is-now .lft-label{color:var(--accent)}
+.app-status-pick{display:flex;flex-wrap:wrap;align-items:center;gap:8px}
+.app-status-pick .fp-chip{height:32px;padding:0 10px}
+.app-status-pick .fp-chip[disabled]{opacity:.35}
+.app-got{display:inline-flex;gap:8px;align-items:center;justify-content:center}
+.app-compose .app-ai-row{align-items:flex-end}
+#req-compose{display:contents}
+
+.app-req-form{max-width:640px}
+.app-req-form .lft-window__body{display:grid;gap:16px}
+.app-field{display:grid;gap:6px}
+.app-field-row{display:flex;gap:12px;align-items:flex-end;flex-wrap:wrap}
+.app-field-row .app-field{flex:1;min-width:140px}
+.app-urgent{height:48px;display:inline-flex;gap:6px;align-items:center}
+.app-urgent[aria-pressed="true"]{border-color:var(--signal);color:var(--signal)}
+.app-req-form .lft-btn[type="submit"]{display:inline-flex;gap:8px;align-items:center;justify-content:center}
+.app-req-form .app-select{min-width:0}
+
+@media (max-width:1023px){
+  .app-msgs{padding:12px 16px 16px}
+  .app-chat-head{padding:16px 16px 0}
+  .app-msg-bubble{max-width:92%}
+  .app-req-head .lft-btn{width:100%;justify-content:center}
+  .app-steps .lft-label{font-size:9px;letter-spacing:.02em}
+  .app-attach{width:44px;height:44px}
+  .app-tabs{grid-template-columns:repeat(5,1fr)}
+  .app-tabs a{font-size:9px;letter-spacing:.03em}
+}
+@media (prefers-reduced-motion:no-preference){
+  .app-msg{animation:app-in .22s ease-out both}
+  .app-viewer{animation:app-fade .16s ease-out both}
+}
+
+/* Поиск с кнопкой внутри поля: отдельная «Найти» больше не занимает место */
+.app-field-search{padding-right:6px}
+.app-field-go{flex:none;display:inline-flex;align-items:center;justify-content:center;width:36px;height:36px;padding:0;border:0;background:var(--accent);color:var(--on-accent);cursor:pointer}
+.app-field-go .lft-icon{width:16px;height:16px}
+.app-field-go:hover,.app-field-go:focus-visible{background:var(--accent-stripe)}
+.app-field-search input[type="search"]::-webkit-search-cancel-button{display:none}
+
+/* Журнал: ручная запись (например, закрыть заявку по лифту без ИИ) */
+.app-add-entry{display:inline-flex;gap:8px;align-items:center;justify-content:center;white-space:nowrap}
+.app-add-entry .lft-icon{width:16px;height:16px}
+@media (max-width:1023px){
+  #pj-form .app-add-entry{flex:1 1 100%}
+}
+
+/* ---------- Тема ---------- */
+/* Логотип: у каждой темы свой файл, видна одна картинка */
+img.app-logo-light,.app-logo img.app-logo-light{display:none}
+:root[data-theme="light"] img.app-logo-dark,:root[data-theme="light"] .app-logo img.app-logo-dark{display:none}
+:root[data-theme="light"] img.app-logo-light,:root[data-theme="light"] .app-logo img.app-logo-light{display:block}
+/* Переключатель темы: квадратный значок той же высоты, что и бейдж с именем */
+.app-theme{display:inline-flex;align-items:center;justify-content:center;align-self:stretch;min-width:24px;padding:2px 5px;background:transparent;color:var(--accent);border-color:var(--line);cursor:pointer}
+.app-theme:hover,.app-theme:focus-visible{background:var(--surface-raised)}
+.app-user+.app-theme{margin-left:-10px}
+/* Светлая тема: стальная шапка со светлым текстом */
+:root[data-theme="light"] .fp-top{background:var(--top-bg);border-bottom-color:var(--top-bg)}
+:root[data-theme="light"] .fp-nav a{color:var(--top-muted)}
+:root[data-theme="light"] .fp-nav a:hover{color:var(--top-ink)}
+:root[data-theme="light"] .fp-nav a.on{color:var(--top-ink);border-bottom-color:var(--top-mark)}
+:root[data-theme="light"] .fp-sys .lft-badge,:root[data-theme="light"] #app-clock{color:var(--top-ink);border-color:var(--top-line)}
+:root[data-theme="light"] .fp-sys .lft-badge:hover,:root[data-theme="light"] .fp-sys .lft-badge:focus-visible{background:rgba(255,255,255,.14)}
+:root[data-theme="light"] .fp-nav [data-page].has-new::after{background:var(--top-mark);box-shadow:none}
+:root[data-theme="light"] .fp-top :focus-visible{outline-color:var(--top-ink)}
+/* Светлая тема: поля ввода белые, как карточки; розовый остаётся для выделений */
+:root[data-theme="light"] .fp-field,:root[data-theme="light"] .app-draft-input{background:var(--surface);color-scheme:light}
+:root[data-theme="light"] .fp-field:focus-within{border-color:var(--accent)}
+/* Светлая тема: без «экранного» свечения, тени мягче */
+:root[data-theme="light"] .app-acc.is-open .app-acc-head,:root[data-theme="light"] .app-msg.is-mine .app-msg-bubble{background:var(--surface-raised)}
+:root[data-theme="light"] .lft-window,:root[data-theme="light"] .app-req,:root[data-theme="light"] .app-req-card{box-shadow:0 1px 2px var(--shadow)}

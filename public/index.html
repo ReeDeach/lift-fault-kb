@@ -5,20 +5,34 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Lift Fault Terminal — база неисправностей лифтов</title>
 <link rel="icon" href="/assets/img/lft-mark.svg" type="image/svg+xml">
+<script>
+  // Тема до отрисовки, чтобы страница не мигала: выбор пользователя, иначе тема телефона
+  (function () {
+    var t = null;
+    try { t = localStorage.getItem('lft:theme'); } catch (e) {}
+    if (t !== 'light' && t !== 'dark') {
+      t = window.matchMedia && window.matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark';
+    }
+    document.documentElement.setAttribute('data-theme', t);
+  }());
+</script>
 <link rel="stylesheet" href="/assets/css/tokens.css">
 <link rel="stylesheet" href="/assets/css/app.css">
 </head>
 <body>
 <div class="fp">
   <header class="fp-top">
-    <a href="#/codes" class="app-logo"><img src="/assets/img/lft-wordmark.svg" alt="Lift Fault Terminal"></a>
+    <a href="#/codes" class="app-logo"><img class="app-logo-dark" src="/assets/img/lft-wordmark.svg" alt="Lift Fault Terminal"><img class="app-logo-light" src="/assets/img/lft-wordmark-light.svg" alt="Lift Fault Terminal"></a>
     <nav class="fp-nav" aria-label="Разделы">
       <a href="#/codes" data-page="codes">Коды</a>
       <a href="#/journal" data-page="journal">Журнал случаев</a>
       <a href="#/ai" data-page="ai">ИИ-диагностика</a>
+      <a href="#/requests" data-page="requests">Заявки</a>
+      <a href="#/chat" data-page="chat">Чат</a>
     </nav>
     <div class="fp-sys">
       <button type="button" class="lft-badge app-user" id="app-user" hidden title="Сменить роль"></button>
+      <button type="button" class="lft-badge app-theme" id="app-theme"></button>
       <span class="lft-badge app-status" id="app-status"><span class="lft-icon lft-icon--12"></span>связь…</span>
       <span class="lft-label" id="app-clock"></span>
     </div>
@@ -41,6 +55,8 @@
   <a href="#/codes" data-page="codes"><span class="lft-icon lft-icon--code"></span>Коды</a>
   <a href="#/journal" data-page="journal"><span class="lft-icon lft-icon--journal"></span>Журнал</a>
   <a href="#/ai" data-page="ai"><span class="lft-icon lft-icon--chip"></span>ИИ</a>
+  <a href="#/requests" data-page="requests"><span class="lft-icon lft-icon--box"></span>Заявки</a>
+  <a href="#/chat" data-page="chat"><span class="lft-icon lft-icon--chat"></span>Чат</a>
 </nav>
 
 <noscript><p class="lft-label" style="padding:24px">Для работы справочника включите JavaScript.</p></noscript>

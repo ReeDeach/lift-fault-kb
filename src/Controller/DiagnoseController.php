@@ -20,7 +20,8 @@ use App\Support\Disclaimer;
  */
 final class DiagnoseController
 {
-    private const MIN_LENGTH = 10;
+    /** Достаточно кода («44») или одного слова («шум»): механик пишет коротко */
+    private const MIN_LENGTH = 2;
     private const MAX_LENGTH = 2000;
 
     public function __construct(
@@ -42,12 +43,15 @@ final class DiagnoseController
         }
 
         $description = $body['description'] ?? null;
+        $codeField = $body['code'] ?? null;
         if (!is_string($description) || mb_strlen(trim($description)) < self::MIN_LENGTH) {
-            $fields['description'] = 'Опишите неисправность: не короче ' . self::MIN_LENGTH . ' символов';
+            $fields['description'] = 'Опишите неисправность или напишите код';
         } elseif (mb_strlen($description) > self::MAX_LENGTH) {
             $fields['description'] = 'Не длиннее ' . self::MAX_LENGTH . ' символов';
-        } elseif (QueryBuilder::words($description) === []) {
-            $fields['description'] = 'В описании нет ни одного слова';
+        } elseif (QueryBuilder::words($description) === [] && CodeDetector::detect($description) === []
+            && !(is_string($codeField) && trim($codeField) !== '')) {
+            // Ни слова, ни кода («!!!», «5»): искать нечего
+            $fields['description'] = 'Опишите неисправность словами или напишите код, например «44» или «ошибка 50»';
         }
 
         $strings = [];

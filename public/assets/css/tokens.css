@@ -4,7 +4,7 @@
 :root {
   /* Системные элементы (полосы прокрутки, автозаполнение) тоже в тёмной теме */
   color-scheme: dark;
-  /* Цвет (одна тёмная тема) */
+  /* Цвет: тёмная тема «терминал» (по умолчанию) */
   --ground: #0e0c0b;
   --surface: #171412;
   --surface-raised: #221c19;
@@ -30,11 +30,48 @@
   /* Свечение */
   --glow-accent: 0 0 0 1px #ff5a1f, 0 0 14px rgba(255,90,31,0.55);
   --glow-signal: 0 0 0 1px #ff2e88, 0 0 14px rgba(255,46,136,0.5);
+  /* Свечение крупных кодов, затемнение под шторками, тень, штриховка кнопки «идёт запрос» */
+  --code-glow: rgba(255,46,136,0.45);
+  --backdrop: rgba(14,12,11,0.72);
+  --backdrop-strong: rgba(14,12,11,0.94);
+  --shadow: rgba(0,0,0,0.6);
+  --accent-stripe: #e04a12;
   /* Шрифты: Unbounded, Golos Text, IBM Plex Mono, Jersey 10 (Google Fonts, подключаются в app.css) */
   --font-display: "Unbounded", "Arial Black", sans-serif;
   --font-sans: "Golos Text", system-ui, sans-serif;
   --font-mono: "IBM Plex Mono", ui-monospace, monospace;
   --font-pixel: "Jersey 10", "IBM Plex Mono", monospace;
+}
+
+/* Светлая тема в цветах фирмы «пыльная роза и сталь»: белые карточки, тёплый серый фон,
+   серо-розовые выделения, стальная серо-голубая шапка и кнопки.
+   Включается атрибутом data-theme="light" на <html> (переключатель в шапке). */
+:root[data-theme="light"] {
+  color-scheme: light;
+  --ground: #f4f1f0;
+  --surface: #ffffff;
+  --surface-raised: #eadcda;
+  --line-faint: #dcd2d0;
+  --line: #9aa8b5;
+  --ink: #262b30;
+  --muted: #5e6873;
+  --accent: #4f6578;
+  --on-accent: #ffffff;
+  --signal: #a8646f;
+  --ok: #2f7d68;
+  --glow-accent: 0 0 0 1px #4f6578, 0 0 0 4px rgba(79,101,120,0.18);
+  --glow-signal: 0 0 0 1px #a8646f, 0 0 0 4px rgba(168,100,111,0.16);
+  --code-glow: transparent;
+  --backdrop: rgba(38,43,48,0.45);
+  --backdrop-strong: rgba(38,43,48,0.88);
+  --shadow: rgba(38,43,48,0.16);
+  --accent-stripe: #3f5263;
+  /* Шапка — сплошная стальная полоса */
+  --top-bg: #4f6578;
+  --top-ink: #ffffff;
+  --top-muted: #d3dbe2;
+  --top-line: rgba(255,255,255,0.55);
+  --top-mark: #eadcda;
 }
 
 /* Текстовые стили */
