@@ -114,7 +114,8 @@ final class PushController
             ?? throw new HttpException(404, 'Это устройство не подписано: включите уведомления заново');
         $this->notifier->test($subscription);
 
-        return new Response(202);
+        // Тело обязательно: пустой ответ 202 интерфейс (jQuery, dataType json) счёл бы обрывом связи
+        return Response::json(['queued' => true], 202);
     }
 
     private function enabled(): void

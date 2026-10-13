@@ -242,7 +242,7 @@ final class PushApiTest extends TestCase
         $this->subscribe(self::MECH_B, 'mechanic', 'b');
 
         $this->assertSame(404, $this->call(self::MECH_B, 'POST', '/api/push/test', ['endpoint' => $this->endpoint('a')])[0]);
-        $this->assertSame(202, $this->call(self::MECH_A, 'POST', '/api/push/test', ['endpoint' => $this->endpoint('a')])[0]);
+        $this->assertSame([202, ['queued' => true]], $this->call(self::MECH_A, 'POST', '/api/push/test', ['endpoint' => $this->endpoint('a')]));
         $this->assertSame(['a'], array_keys($this->takeSent()));
 
         $this->assertSame(204, $this->call(self::MECH_A, 'POST', '/api/push/unsubscribe', ['endpoint' => $this->endpoint('a')])[0]);
