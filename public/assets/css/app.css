@@ -18,7 +18,7 @@ body{background:var(--ground);color:var(--ink);font-family:var(--font-sans);marg
 
 .lft-code{display:grid;gap:var(--space-2);padding:var(--space-4) var(--space-6);border:1px solid var(--line);background:var(--ground)}
 .lft-code__num{font-family:var(--font-pixel);font-weight:400;font-size:144px;line-height:.9;color:var(--accent)}
-.lft-code--alarm .lft-code__num{color:var(--signal);text-shadow:0 0 14px rgba(255,46,136,.5)}
+.lft-code--alarm .lft-code__num{color:var(--signal);text-shadow:0 0 14px var(--code-glow)}
 .lft-code__name{font-family:var(--font-display);font-weight:800;font-size:15px;line-height:20px;text-transform:uppercase;color:var(--ink)}
 .lft-badge{display:inline-flex;gap:var(--space-1);align-items:center;font-family:var(--font-mono);font-size:11px;letter-spacing:.08em;text-transform:uppercase;padding:2px 6px;border-radius:var(--radius-sm);border:1px solid currentColor}
 .lft-badge--alarm{color:var(--signal)}
@@ -93,7 +93,7 @@ body{background:var(--ground);color:var(--ink);font-family:var(--font-sans);marg
 .fp-list .lft-label{padding:0 24px 12px;display:block}
 .fp-main{padding:32px 40px!important}
 .fp-hero{display:grid;grid-template-columns:auto 1fr;gap:32px;align-items:end;padding-bottom:28px;border-bottom:1px solid var(--line)}
-.fp-hero .lft-code__num{font-family:var(--font-pixel);font-weight:400;font-size:190px;line-height:.8;color:var(--signal);text-shadow:0 0 18px rgba(255,46,136,.45)}
+.fp-hero .lft-code__num{font-family:var(--font-pixel);font-weight:400;font-size:190px;line-height:.8;color:var(--signal);text-shadow:0 0 18px var(--code-glow)}
 .fp-title{font-family:var(--font-display);font-weight:800;font-size:26px;line-height:1.1;text-transform:uppercase;color:var(--ink);margin:12px 0 12px!important}
 .fp-desc{font-size:15px;line-height:22px;color:var(--ink);max-width:560px}
 .fp-safety{display:flex;gap:12px;align-items:center;margin:24px 0 32px;padding:12px 16px;border:1px solid var(--accent);color:var(--accent);font-family:var(--font-mono);font-size:12px;letter-spacing:.06em;text-transform:uppercase}
@@ -153,7 +153,7 @@ body{background:var(--ground);color:var(--ink);font-family:var(--font-sans);marg
 .nf{position:relative;padding:56px 40px 40px;text-align:center;overflow:hidden}
 .nf-corner{position:absolute;display:grid;gap:4px;text-align:left}
 .nf-word{font-family:var(--font-display);font-weight:800;font-size:56px;line-height:1;text-transform:uppercase;color:var(--ink);margin:0}
-.nf-code{font-family:var(--font-pixel);font-weight:400;font-size:290px;line-height:.8;color:var(--signal);text-shadow:0 0 24px rgba(255,46,136,.45);margin:8px 0}
+.nf-code{font-family:var(--font-pixel);font-weight:400;font-size:290px;line-height:.8;color:var(--signal);text-shadow:0 0 24px var(--code-glow);margin:8px 0}
 .nf-sub{font-family:var(--font-mono);font-size:28px;letter-spacing:.08em;text-transform:uppercase;color:var(--signal);margin:0 0 40px}
 .nf-wins{display:flex;gap:24px;justify-content:center;align-items:flex-start;text-align:left}
 .nf-act{display:grid;grid-template-columns:48px 1fr;gap:16px;align-items:center;font-family:var(--font-mono);font-size:13px;line-height:18px;text-transform:uppercase;letter-spacing:.04em}
@@ -175,7 +175,7 @@ body{background:var(--ground);color:var(--ink);font-family:var(--font-sans);marg
 .mb-tabs a{display:grid;justify-items:center;align-content:center;gap:4px;color:var(--muted);text-decoration:none;font-family:var(--font-mono);font-size:10px;letter-spacing:.06em;text-transform:uppercase}
 .mb-tabs a.on{color:var(--accent);box-shadow:inset 0 2px 0 var(--accent)}
 .mb-hero{display:grid;grid-template-columns:auto 1fr;gap:16px;align-items:end;padding-bottom:16px;border-bottom:1px solid var(--line)}
-.mb-hero .lft-code__num{font-family:var(--font-pixel);font-weight:400;font-size:116px;line-height:.8;color:var(--signal);text-shadow:0 0 14px rgba(255,46,136,.45)}
+.mb-hero .lft-code__num{font-family:var(--font-pixel);font-weight:400;font-size:116px;line-height:.8;color:var(--signal);text-shadow:0 0 14px var(--code-glow)}
 .mb-title{font-family:var(--font-display);font-weight:800;font-size:18px;line-height:1.15;text-transform:uppercase;margin:8px 0 0!important}
 .mb-hints{display:grid;grid-template-columns:repeat(5,1fr);gap:6px}
 .mb-hints span{height:36px;display:grid;place-items:center;border:1px solid var(--line-faint);font-family:var(--font-mono);font-size:13px;color:var(--muted)}
@@ -282,7 +282,7 @@ body{background:var(--ground);color:var(--ink);font-family:var(--font-sans);marg
 
 /* Карточка кода */
 .app-hero-code{color:var(--accent);word-break:break-all}
-.app-hero-code--alarm{color:var(--signal);text-shadow:0 0 18px rgba(255,46,136,.45)}
+.app-hero-code--alarm{color:var(--signal);text-shadow:0 0 18px var(--code-glow)}
 .app-hero-meta{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
 .fp-main h1.fp-title{margin:12px 0}
 .app-h{margin-top:32px!important}
@@ -423,11 +423,11 @@ a.nf-act:hover span{color:var(--accent)}
 .app-dd-opt[aria-selected="true"]{box-shadow:inset 3px 0 0 var(--accent)}
 .app-dd-opt[aria-selected="true"] .app-dd-name{color:var(--accent)}
 .app-dd-opt[aria-selected="true"] .app-dd-count{color:var(--accent)}
-.app-dd--sheet{position:fixed;top:auto;left:0;right:0;bottom:0;z-index:51;width:auto;max-width:none;min-width:0;max-height:72vh;border-left:0;border-right:0;border-bottom:0;padding-bottom:env(safe-area-inset-bottom);box-shadow:0 -8px 32px rgba(0,0,0,.6);animation:app-sheet .18s ease-out}
+.app-dd--sheet{position:fixed;top:auto;left:0;right:0;bottom:0;z-index:51;width:auto;max-width:none;min-width:0;max-height:72vh;border-left:0;border-right:0;border-bottom:0;padding-bottom:env(safe-area-inset-bottom);box-shadow:0 -8px 32px var(--shadow);animation:app-sheet .18s ease-out}
 .app-dd--sheet .lft-window__bar{position:sticky;top:0;z-index:1;padding:12px 16px}
 .app-dd--sheet .app-dd-close{width:28px;height:28px;font-size:16px;background:transparent;cursor:pointer}
 .app-dd--sheet .app-dd-opt{padding:16px}
-.app-dd-backdrop{position:fixed;inset:0;z-index:50;background:rgba(14,12,11,.72)}
+.app-dd-backdrop{position:fixed;inset:0;z-index:50;background:var(--backdrop)}
 body.app-dd-lock{overflow:hidden}
 @keyframes app-sheet{from{transform:translateY(24px);opacity:0}}
 @media (prefers-reduced-motion:reduce){.app-dd--sheet{animation:none}}
@@ -580,7 +580,7 @@ a.app-type{display:inline-flex;align-items:center;text-decoration:none}
 /* Состояния, работающие при любых настройках */
 .lft-btn{transition:background-color .15s,border-color .15s,color .15s,box-shadow .15s,transform .08s}
 .lft-btn:focus-visible{outline:0;box-shadow:var(--glow-accent)}
-.lft-btn[aria-busy="true"]{cursor:progress;background:repeating-linear-gradient(-45deg,var(--accent) 0 10px,#e04a12 10px 20px);background-size:28px 28px;border-color:var(--accent);color:var(--on-accent)}
+.lft-btn[aria-busy="true"]{cursor:progress;background:repeating-linear-gradient(-45deg,var(--accent) 0 10px,var(--accent-stripe) 10px 20px);background-size:28px 28px;border-color:var(--accent);color:var(--on-accent)}
 .fp-field,.fp-chip,.app-draft-input,.app-pick-row,.app-liftno,.app-type,.app-example,.app-variant,.app-pj-entry{transition:border-color .15s,background-color .15s,box-shadow .2s,color .15s}
 .fp-field:focus-within{outline:0;border-color:var(--accent);box-shadow:var(--glow-accent)}
 .app-select:focus-within{outline:0;box-shadow:var(--glow-accent)}
@@ -697,7 +697,7 @@ a.app-type{display:inline-flex;align-items:center;text-decoration:none}
 .app-photos--1 .app-photo{aspect-ratio:auto;max-height:320px}
 .app-photo img{display:block;width:100%;height:100%;object-fit:cover}
 .app-photo:hover,.app-photo:focus-visible{border-color:var(--accent);outline:0}
-.app-viewer{position:fixed;inset:0;z-index:60;display:grid;place-items:center;padding:16px;background:rgba(14,12,11,.94);cursor:zoom-out}
+.app-viewer{position:fixed;inset:0;z-index:60;display:grid;place-items:center;padding:16px;background:var(--backdrop-strong);cursor:zoom-out}
 .app-viewer img{max-width:100%;max-height:100%;object-fit:contain;border:1px solid var(--line)}
 .app-viewer-x{position:absolute;top:16px;right:16px;width:36px;height:36px;font-size:18px;background:var(--surface);cursor:pointer}
 
@@ -735,7 +735,7 @@ a.app-type{display:inline-flex;align-items:center;text-decoration:none}
 .app-req-facts div{display:grid;gap:4px}
 .app-req-facts dd{margin:0;font:400 15px/20px var(--font-sans)}
 .app-req-detail{padding-bottom:0}
-.app-req-rejected{display:flex;align-items:center;gap:6px;color:var(--alarm,#ff3b3b)}
+.app-req-rejected{display:flex;align-items:center;gap:6px;color:var(--signal)}
 .app-steps{list-style:none;margin:0;padding:0;display:grid;grid-template-columns:repeat(5,1fr);gap:4px}
 .app-steps li{display:grid;gap:6px}
 .app-steps i{display:block;height:6px;background:var(--line-faint)}
@@ -756,7 +756,7 @@ a.app-type{display:inline-flex;align-items:center;text-decoration:none}
 .app-field-row{display:flex;gap:12px;align-items:flex-end;flex-wrap:wrap}
 .app-field-row .app-field{flex:1;min-width:140px}
 .app-urgent{height:48px;display:inline-flex;gap:6px;align-items:center}
-.app-urgent[aria-pressed="true"]{border-color:var(--alarm,#ff3b3b);color:var(--alarm,#ff3b3b)}
+.app-urgent[aria-pressed="true"]{border-color:var(--signal);color:var(--signal)}
 .app-req-form .lft-btn[type="submit"]{display:inline-flex;gap:8px;align-items:center;justify-content:center}
 .app-req-form .app-select{min-width:0}
 
@@ -781,3 +781,15 @@ a.app-type{display:inline-flex;align-items:center;text-decoration:none}
 @media (max-width:1023px){
   #pj-form .app-add-entry{flex:1 1 100%}
 }
+
+/* ---------- Тема ---------- */
+/* Логотип: у каждой темы свой файл, видна одна картинка */
+img.app-logo-light,.app-logo img.app-logo-light{display:none}
+:root[data-theme="light"] img.app-logo-dark,:root[data-theme="light"] .app-logo img.app-logo-dark{display:none}
+:root[data-theme="light"] img.app-logo-light,:root[data-theme="light"] .app-logo img.app-logo-light{display:block}
+.app-theme{display:inline-flex;gap:6px;align-items:center;background:transparent;color:var(--muted);cursor:pointer}
+.app-theme:hover,.app-theme:focus-visible{color:var(--accent)}
+@media (max-width:1023px){.app-theme-text{display:none}.app-theme{padding:2px 8px}}
+/* Светлая тема: без «экранного» свечения, тени мягче */
+:root[data-theme="light"] .app-acc.is-open .app-acc-head,:root[data-theme="light"] .app-msg.is-mine .app-msg-bubble{background:var(--surface-raised)}
+:root[data-theme="light"] .lft-window,:root[data-theme="light"] .app-req,:root[data-theme="light"] .app-req-card{box-shadow:0 1px 2px var(--shadow)}

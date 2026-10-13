@@ -1318,7 +1318,8 @@
         var me = session.me;
         $view.html(
             '<div class="nf app-login">'
-            + '<img class="app-login-mark" src="/assets/img/lft-mark.svg" alt="">'
+            + '<img class="app-login-mark app-logo-dark" src="/assets/img/lft-mark.svg" alt="">'
+            + '<img class="app-login-mark app-logo-light" src="/assets/img/lft-mark-light.svg" alt="">'
             + '<p class="nf-word">Кто вы?</p>'
             + '<p class="lft-label">' + (me.demo ? 'Демо · вход без регистрации, любая роль' : 'Аккаунт: ' + esc(me.login)) + '</p>'
             + '<div class="app-login-actions">'
@@ -2720,6 +2721,28 @@
             ai.code = ex.c;
             submitAi();
         });
+
+    // ---------- Тема: тёмная «терминал» или светлая в цветах фирмы ----------
+
+    function theme() {
+        return document.documentElement.getAttribute('data-theme') === 'light' ? 'light' : 'dark';
+    }
+
+    function drawThemeButton() {
+        var light = theme() === 'light';
+        $('#app-theme').html('<span aria-hidden="true">' + (light ? '◐' : '◑') + '</span><span class="app-theme-text">' + (light ? 'тёмная' : 'светлая') + '</span>')
+            .attr('aria-label', light ? 'Включить тёмную тему' : 'Включить светлую тему');
+    }
+
+    $(document).on('click', '#app-theme', function () {
+        var next = theme() === 'light' ? 'dark' : 'light';
+        document.documentElement.setAttribute('data-theme', next);
+        try {
+            localStorage.setItem('lft:theme', next);
+        } catch (e) { /* без хранилища тема продержится до перезагрузки */ }
+        drawThemeButton();
+    });
+    drawThemeButton();
 
     function tick() {
         var d = new Date();

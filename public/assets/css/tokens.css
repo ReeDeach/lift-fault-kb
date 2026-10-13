@@ -4,7 +4,7 @@
 :root {
   /* Системные элементы (полосы прокрутки, автозаполнение) тоже в тёмной теме */
   color-scheme: dark;
-  /* Цвет (одна тёмная тема) */
+  /* Цвет: тёмная тема «терминал» (по умолчанию) */
   --ground: #0e0c0b;
   --surface: #171412;
   --surface-raised: #221c19;
@@ -30,11 +30,41 @@
   /* Свечение */
   --glow-accent: 0 0 0 1px #ff5a1f, 0 0 14px rgba(255,90,31,0.55);
   --glow-signal: 0 0 0 1px #ff2e88, 0 0 14px rgba(255,46,136,0.5);
+  /* Свечение крупных кодов, затемнение под шторками, тень, штриховка кнопки «идёт запрос» */
+  --code-glow: rgba(255,46,136,0.45);
+  --backdrop: rgba(14,12,11,0.72);
+  --backdrop-strong: rgba(14,12,11,0.94);
+  --shadow: rgba(0,0,0,0.6);
+  --accent-stripe: #e04a12;
   /* Шрифты: Unbounded, Golos Text, IBM Plex Mono, Jersey 10 (Google Fonts, подключаются в app.css) */
   --font-display: "Unbounded", "Arial Black", sans-serif;
   --font-sans: "Golos Text", system-ui, sans-serif;
   --font-mono: "IBM Plex Mono", ui-monospace, monospace;
   --font-pixel: "Jersey 10", "IBM Plex Mono", monospace;
+}
+
+/* Светлая тема в цветах фирмы: белый, серо-розовый и серо-голубой.
+   Включается атрибутом data-theme="light" на <html> (переключатель в шапке). */
+:root[data-theme="light"] {
+  color-scheme: light;
+  --ground: #f7f4f5;
+  --surface: #ffffff;
+  --surface-raised: #f1e6e8;
+  --line-faint: #ddd3d6;
+  --line: #8a9cad;
+  --ink: #2b333b;
+  --muted: #6b7580;
+  --accent: #5b7489;
+  --on-accent: #ffffff;
+  --signal: #b0566b;
+  --ok: #2f7d68;
+  --glow-accent: 0 0 0 1px #5b7489, 0 0 0 4px rgba(91,116,137,0.18);
+  --glow-signal: 0 0 0 1px #b0566b, 0 0 0 4px rgba(176,86,107,0.16);
+  --code-glow: transparent;
+  --backdrop: rgba(43,51,59,0.42);
+  --backdrop-strong: rgba(43,51,59,0.86);
+  --shadow: rgba(43,51,59,0.18);
+  --accent-stripe: #4a6073;
 }
 
 /* Текстовые стили */
