@@ -75,6 +75,27 @@ final class FaultCodeRepository
     }
 
     /**
+     * Коды по списку id в том же порядке. Несуществующие id пропускаются.
+     *
+     * @param list<int> $ids
+     * @return list<array<string, mixed>>
+     */
+    public function findMany(array $ids): array
+    {
+        if ($ids === []) {
+            return [];
+        }
+
+        $in = implode(',', array_map('intval', $ids));
+        $byId = [];
+        foreach ($this->pdo->query(self::BASE_SELECT . " WHERE fc.id IN ($in)")->fetchAll() as $row) {
+            $byId[(int) $row['id']] = $this->shape($row);
+        }
+
+        return array_values(array_filter(array_map(static fn (int $id): ?array => $byId[$id] ?? null, $ids)));
+    }
+
+    /**
      * Дополняет коды деревом: симптомы, причины, ремонты с шагами и случаи из практики.
      * Запросы идут пачками по всем кодам сразу, а не по одному на код.
      *

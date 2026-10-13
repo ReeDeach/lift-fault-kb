@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Tests\Database;
 
 use App\Database\Connection;
+use App\Support\PersonalData;
 use PDO;
 use PDOException;
 use PHPUnit\Framework\TestCase;
@@ -136,17 +137,9 @@ final class SchemaTest extends TestCase
             "SELECT CONCAT_WS(' ', description, notes) FROM cases"
         )->fetchAll(PDO::FETCH_COLUMN);
 
-        $patterns = [
-            'фамилия с инициалами' => '/[А-ЯЁ][а-яё]+\s+[А-ЯЁ]\.\s?[А-ЯЁ]\./u',
-            'регистрационный номер лифта' => '/\b\d{4}\s?н\b/u',
-            'телефон' => '/\+?\d[\d\s\-()]{8,}\d/u',
-            'адрес' => '/\b(ул|пр|пер|д|кв)\.\s?\S|\bулица\b|\bпроспект\b/u',
-        ];
-
         foreach ($texts as $text) {
-            foreach ($patterns as $label => $regex) {
-                $this->assertSame(0, preg_match($regex, (string) $text), "В случае найдено: $label — $text");
-            }
+            $found = PersonalData::find((string) $text);
+            $this->assertNull($found, "В случае найдено: $found — $text");
         }
     }
 

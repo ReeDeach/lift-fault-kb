@@ -38,7 +38,7 @@ services:
       retries: 20
 
   manticore:
-    image: manticoresearch/manticore:latest
+    image: manticoresearch/manticore:29.9.0
     ports:
       - "9306:9306"
     volumes:
