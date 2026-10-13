@@ -1386,12 +1386,12 @@
 
         $view.html(
             '<form class="fp-search app-search" id="pj-form" role="search">'
-            + '<label class="fp-field">' + icon('search')
+            + '<div class="fp-field app-field-search">'
             + '<input class="app-input" id="pj-q" type="search" value="' + esc(params.q || '') + '" autocomplete="off" '
-            + 'placeholder="Адрес, код или слово из записи" aria-label="Поиск по журналу"></label>'
+            + 'placeholder="Адрес, код или слово из записи" aria-label="Поиск по журналу">'
+            + '<button type="submit" class="app-field-go" aria-label="Найти" title="Найти">' + icon('search') + '</button></div>'
             + (master ? '<label class="fp-chip app-select">' + icon('settings')
                 + '<select id="pj-mechanic" aria-label="Механик"><option value="">Все механики</option></select></label>' : '')
-            + '<button class="lft-btn" type="submit">Найти</button>'
             + '<button type="button" class="lft-btn lft-btn--ghost app-add-entry" data-add-entry>' + icon('journal') + 'Добавить запись</button>'
             + tabs
             + '</form>'

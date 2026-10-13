@@ -777,6 +777,13 @@ a.app-type{display:inline-flex;align-items:center;text-decoration:none}
   .app-viewer{animation:app-fade .16s ease-out both}
 }
 
+/* Поиск с кнопкой внутри поля: отдельная «Найти» больше не занимает место */
+.app-field-search{padding-right:6px}
+.app-field-go{flex:none;display:inline-flex;align-items:center;justify-content:center;width:36px;height:36px;padding:0;border:0;background:var(--accent);color:var(--on-accent);cursor:pointer}
+.app-field-go .lft-icon{width:16px;height:16px}
+.app-field-go:hover,.app-field-go:focus-visible{background:var(--accent-stripe)}
+.app-field-search input[type="search"]::-webkit-search-cancel-button{display:none}
+
 /* Журнал: ручная запись (например, закрыть заявку по лифту без ИИ) */
 .app-add-entry{display:inline-flex;gap:8px;align-items:center;justify-content:center;white-space:nowrap}
 .app-add-entry .lft-icon{width:16px;height:16px}
