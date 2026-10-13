@@ -215,3 +215,168 @@ body{background:var(--ground);color:var(--ink);font-family:var(--font-sans);marg
   .nf-wins{flex-direction:column;align-items:stretch}
   .nf-wins .lft-window{width:auto!important;margin:0!important}
 }
+
+/* ==========================================================================
+   Приложение (app-…): то, чего нет в образцах дизайн-системы.
+   Поля ввода, список кодов со своей прокруткой, ремонты, состояния, панель на телефоне.
+   ========================================================================== */
+.app-view{flex:1;display:flex;flex-direction:column}
+.app-logo{display:block;line-height:0}
+.app-text{margin:0;font-size:15px;line-height:22px}
+.app-muted{color:var(--muted)}
+.app-accent{color:var(--accent)}
+.app-bad{color:var(--signal)}
+.app-empty{margin:0;font-size:14px;line-height:20px;color:var(--muted)}
+.app-note{margin:12px 0 0}
+.app-pad{padding:32px 40px}
+.app-loading{margin:0;padding:32px 40px}
+.app-loading::after{content:"";display:inline-block;width:8px;height:12px;margin-left:6px;background:var(--accent);vertical-align:-1px;animation:app-blink 1s steps(1) infinite}
+@keyframes app-blink{50%{opacity:0}}
+@media (prefers-reduced-motion:reduce){.app-loading::after{animation:none}}
+
+/* Поиск: настоящие поля внутри fp-field и fp-chip */
+.app-search{position:relative}
+.app-input{flex:1;min-width:0;height:100%;background:transparent;border:0;outline:0;color:var(--ink);font:400 15px/1 var(--font-sans)}
+.app-input::placeholder{color:var(--muted)}
+.app-input:disabled{cursor:not-allowed}
+.fp-field:focus-within,.app-select:focus-within{outline:2px solid var(--ink);outline-offset:2px}
+.app-input[aria-invalid="true"]{color:var(--signal)}
+.app-select{position:relative;padding-right:10px}
+.app-select select{appearance:none;-webkit-appearance:none;background:transparent;border:0;outline:0;color:var(--ink);font:500 12px/1 var(--font-mono);padding-right:18px;max-width:260px;cursor:pointer}
+.app-select select option{background:var(--surface);color:var(--ink)}
+.app-select::after{content:"";position:absolute;right:12px;top:50%;width:6px;height:6px;border-right:2px solid var(--accent);border-bottom:2px solid var(--accent);transform:translateY(-70%) rotate(45deg);pointer-events:none}
+.app-field-error{position:absolute;left:40px;bottom:4px;margin:0;color:var(--signal)}
+
+/* Колонки экрана кодов: список прокручивается сам, страница не растягивается */
+.app-cols{grid-template-columns:280px 1fr 340px}
+.app-list{padding:0!important;position:sticky;top:0;align-self:start;max-height:100vh;overflow-y:auto;scrollbar-color:var(--line-faint) transparent}
+.app-list-head{display:block;padding:24px 24px 12px;position:sticky;top:0;background:var(--ground);border-bottom:1px solid var(--line-faint);z-index:1}
+.app-list .fp-list li{display:block;padding:0}
+.app-list .fp-list li.app-group{padding:16px 24px 8px;color:var(--accent);border-bottom:1px solid var(--line-faint);background:var(--ground)}
+.app-list .fp-list a{display:grid;grid-template-columns:44px 1fr;gap:10px;padding:12px 24px;color:inherit;text-decoration:none}
+.app-list .fp-list a:hover{background:var(--surface)}
+.app-list .fp-list li.on a{background:var(--surface-raised)}
+.app-list .fp-list li b.app-safety{color:var(--signal)}
+.app-list .fp-list li.on{box-shadow:inset 2px 0 0 var(--accent)}
+.app-more{padding:16px 24px}
+.app-more .lft-btn{width:100%}
+
+/* Карточка кода */
+.app-hero-code{color:var(--accent);word-break:break-all}
+.app-hero-code--alarm{color:var(--signal);text-shadow:0 0 18px rgba(255,46,136,.45)}
+.app-hero-meta{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+.fp-main h1.fp-title{margin:12px 0}
+.app-h{margin-top:32px!important}
+.app-h-icon{display:flex;gap:10px;align-items:center}
+.app-source{margin:24px 0 0}
+.app-causes{gap:24px}
+.app-cause{display:grid;gap:8px;min-width:0}
+.app-cause-title{margin:2px 0 0;font-size:15px;line-height:22px;color:var(--ink)}
+.app-cause-meta{display:flex;flex-wrap:wrap;gap:8px 12px;align-items:center}
+.app-likely{display:inline-flex;gap:6px;align-items:center}
+.app-meter{display:inline-block;width:50px;height:8px;background:repeating-linear-gradient(90deg,var(--accent) 0 8px,transparent 8px 10px);clip-path:inset(0 calc(100% - var(--v) * 20%) 0 0)}
+
+/* Ремонт раскрывается без JS: <details> */
+.app-fix{border:1px solid var(--line-faint);background:var(--surface)}
+.app-fix[open]{border-color:var(--line)}
+.app-fix summary{display:flex;gap:10px;align-items:center;padding:10px 12px;cursor:pointer;list-style:none;font-size:14px;line-height:20px;color:var(--accent)}
+.app-fix summary::-webkit-details-marker{display:none}
+.app-fix summary span:nth-child(2){flex:1}
+.app-fix summary::after{content:"+";font:500 16px/1 var(--font-mono);color:var(--accent)}
+.app-fix[open] summary::after{content:"−"}
+.app-fix summary:hover{background:var(--surface-raised)}
+.app-fix-body{display:grid;gap:12px;padding:4px 12px 16px}
+.app-safety-note{margin:0;font-size:11px}
+.app-fix-steps{list-style:none;margin:0;padding:0;display:grid;gap:10px}
+.app-fix-steps li{display:grid;grid-template-columns:24px 1fr;gap:10px;font-size:14px;line-height:20px}
+.app-fix-steps p{margin:0}
+.app-fix-steps .app-muted{font-size:13px;line-height:18px}
+.app-step-n{width:22px;height:22px;display:grid;place-items:center;border:1px solid var(--accent);color:var(--accent);font:500 12px/1 var(--font-mono)}
+
+/* Боковая колонка */
+.app-symptoms{list-style:none;margin:0;padding:0;display:grid;gap:8px}
+.app-symptoms li{padding:10px 12px;border:1px solid var(--line-faint);font-size:14px;line-height:20px}
+
+/* Варианты одного кода в разных устройствах */
+.app-variants{display:grid;gap:12px;margin-top:24px}
+.app-variant{display:grid;grid-template-columns:96px 1fr;grid-template-areas:"code label" "code title";gap:4px 16px;align-items:center;padding:16px;border:1px solid var(--line);background:var(--surface);color:var(--ink);text-decoration:none}
+.app-variant:hover{background:var(--surface-raised)}
+.app-variant .lft-label{grid-area:label}
+.app-variant>span:last-child{grid-area:title;font-size:15px;line-height:22px}
+.app-variant-code{grid-area:code;font:400 56px/.9 var(--font-pixel);color:var(--accent)}
+.app-variant-code.app-safety{color:var(--signal)}
+
+/* Код не найден и заглушка ИИ */
+.app-nf{flex:1}
+.app-nf-left{left:40px;top:32px}
+.app-nf-right{right:40px;top:32px;text-align:right}
+.nf-corner .lft-label{display:flex;gap:6px;align-items:center}
+.app-nf-right .lft-label{justify-content:flex-end}
+.nf-code.app-nf-long{font-size:160px}
+.app-nf-help{width:460px;max-width:100%}
+.app-nf-warn{width:300px;margin-top:48px}
+.app-nf-warn .lft-window__body{text-align:center;justify-items:center}
+.app-nf-text{margin:0;font:400 14px/20px var(--font-mono);text-transform:uppercase}
+.app-nf-warn .lft-btn{width:100%}
+a.nf-act{color:var(--ink);text-decoration:none}
+a.nf-act:hover span{color:var(--accent)}
+.app-ai{display:flex;flex-direction:column;align-items:center;gap:0}
+.app-ai .nf-word{margin-top:40px}
+.app-ai-input{width:100%;max-width:780px;margin-top:32px;border:1px solid var(--line-faint);padding:12px}
+.app-ai-input .fp-field{flex:1;opacity:.7}
+.app-nf-back{margin:32px 0 0}
+.app-nf-back .lft-btn{display:inline-block;text-decoration:none}
+
+/* Журнал */
+.app-journal-cols{grid-template-columns:1fr 320px}
+.app-table-wrap{padding:24px!important;min-width:0}
+.jr-table td.c a{color:var(--accent);text-decoration:none;border-bottom:1px solid var(--line-faint)}
+.jr-table td.c a:hover{border-color:var(--accent)}
+.jr-table tr[hidden]{display:none}
+
+/* Нижняя панель разделов на телефоне */
+.app-tabs{display:none}
+
+@media (max-width:1023px){
+  .app-list{position:static;max-height:420px;order:2;border-top:1px solid var(--line)}
+  .app-cols #code-main{order:1}
+  .app-cols #code-side{order:3}
+  .app-cols>section+section{border-top:1px solid var(--line)}
+  .app-select{flex:1}
+  .app-select select{max-width:none;width:100%}
+  .app-search .lft-btn{flex:1}
+  .app-field-error{position:static;flex-basis:100%}
+  .app-pad,.app-loading{padding:24px 16px}
+  .app-table-wrap{padding:16px!important}
+  /* Строки журнала на телефоне — карточки */
+  .jr-table,.jr-table tbody{display:block}
+  .jr-table thead{display:none}
+  .jr-table tr{display:grid;grid-template-columns:auto 1fr auto;gap:8px 12px;align-items:center;padding:12px;margin-bottom:8px;border:1px solid var(--line-faint);background:var(--surface)}
+  .jr-table tr[hidden]{display:none}
+  .jr-table td{padding:0;border:0}
+  .jr-table td:nth-child(1){grid-area:1/1}
+  .jr-table td:nth-child(2){grid-area:1/2}
+  .jr-table td:nth-child(5){grid-area:1/3}
+  .jr-table td:nth-child(3){grid-column:1/-1}
+  .jr-table td:nth-child(4){grid-column:1/-1;max-width:none}
+  .jr-table tr:hover td{background:none}
+  #app-clock{display:none}
+  .app-ai .nf-word{font-size:28px}
+  .app-ai-input{flex-wrap:wrap}
+  .app-ai-input .fp-field{flex-basis:100%}
+  .app-ai-input .lft-btn{flex:1}
+  .app-status{white-space:nowrap}
+  .app-nf-left,.app-nf-right{position:static;margin-bottom:8px}
+  .app-nf{padding:24px 16px}
+  .nf-word{font-size:36px}
+  .nf-code{font-size:150px}
+  .nf-code.app-nf-long{font-size:96px}
+  .nf-sub{font-size:20px;margin-bottom:24px}
+  .app-nf-warn{width:auto;margin-top:0}
+  .app-variant{grid-template-columns:72px 1fr}
+  .app-variant-code{font-size:44px}
+  .app-tabs{display:grid;grid-template-columns:repeat(3,1fr);position:fixed;left:0;right:0;bottom:0;height:64px;background:var(--ground);border-top:1px solid var(--line);z-index:10}
+  .app-tabs a{display:grid;justify-items:center;align-content:center;gap:4px;color:var(--muted);text-decoration:none;font:500 10px/1 var(--font-mono);letter-spacing:.06em;text-transform:uppercase}
+  .app-tabs a.on{color:var(--accent);box-shadow:inset 0 2px 0 var(--accent)}
+  body{padding-bottom:64px}
+}

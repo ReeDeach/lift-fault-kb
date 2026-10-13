@@ -1,0 +1,48 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Lift Fault Terminal — база неисправностей лифтов</title>
+<link rel="icon" href="/assets/img/lft-mark.svg" type="image/svg+xml">
+<link rel="stylesheet" href="/assets/css/tokens.css">
+<link rel="stylesheet" href="/assets/css/app.css">
+</head>
+<body>
+<div class="fp">
+  <header class="fp-top">
+    <a href="#/codes" class="app-logo"><img src="/assets/img/lft-wordmark.svg" alt="Lift Fault Terminal"></a>
+    <nav class="fp-nav" aria-label="Разделы">
+      <a href="#/codes" data-page="codes">Коды</a>
+      <a href="#/journal" data-page="journal">Журнал случаев</a>
+      <a href="#/ai" data-page="ai">ИИ-диагностика</a>
+    </nav>
+    <div class="fp-sys">
+      <span class="lft-badge app-status" id="app-status"><span class="lft-icon lft-icon--12"></span>связь…</span>
+      <span class="lft-label" id="app-clock"></span>
+    </div>
+  </header>
+
+  <main id="app-view" class="app-view" aria-live="polite">
+    <p class="lft-label app-loading">Загрузка</p>
+  </main>
+
+  <footer class="fp-bottom">
+    <span class="lft-label">System status: <span id="app-system" class="ok">stable</span></span>
+    <span class="lft-label">Справочник не заменяет РЭ производителя</span>
+    <span class="lft-label">Keep going.exe</span>
+  </footer>
+</div>
+
+<nav class="app-tabs" aria-label="Разделы">
+  <a href="#/codes" data-page="codes"><span class="lft-icon lft-icon--code"></span>Коды</a>
+  <a href="#/journal" data-page="journal"><span class="lft-icon lft-icon--journal"></span>Журнал</a>
+  <a href="#/ai" data-page="ai"><span class="lft-icon lft-icon--chip"></span>ИИ</a>
+</nav>
+
+<noscript><p class="lft-label" style="padding:24px">Для работы справочника включите JavaScript.</p></noscript>
+
+<script src="/assets/vendor/jquery-3.7.1.min.js"></script>
+<script src="/assets/js/app.js"></script>
+</body>
+</html>
