@@ -90,6 +90,25 @@ final class GeminiClientTest extends TestCase
         $this->client([['status' => 429, 'body' => ''], ['status' => 503, 'body' => '']])->generate('s', 'p', []);
     }
 
+    public function testFailedModelIsSkippedForAWhile(): void
+    {
+        $state = sys_get_temp_dir() . '/gemini-state-' . bin2hex(random_bytes(4)) . '.json';
+        $calls = [];
+        $responses = [['status' => 0, 'body' => ''], self::ok('{"a": 1}'), self::ok('{"a": 2}')];
+        $client = new GeminiClient('k', ['slow', 'spare'], 5, function (string $url) use (&$calls, &$responses): array {
+            $calls[] = $url;
+
+            return array_shift($responses);
+        }, $state);
+
+        $this->assertSame('spare', $client->generate('s', 'p', [])['model']);
+        // Второй запрос сразу идёт к запасной, не дожидаясь таймаута сбойной
+        $this->assertSame('spare', $client->generate('s', 'p', [])['model']);
+        $this->assertCount(3, $calls);
+        $this->assertStringContainsString('/spare:', $calls[2]);
+        @unlink($state);
+    }
+
     public function testBlockedOrNonJsonAnswerThrows(): void
     {
         $blocked = ['status' => 200, 'body' => json_encode(['promptFeedback' => ['blockReason' => 'SAFETY']])];
