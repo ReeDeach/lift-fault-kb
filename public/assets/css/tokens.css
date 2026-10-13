@@ -43,28 +43,35 @@
   --font-pixel: "Jersey 10", "IBM Plex Mono", monospace;
 }
 
-/* Светлая тема в цветах фирмы: белый, серо-розовый и серо-голубой.
+/* Светлая тема в цветах фирмы «пыльная роза и сталь»: белые карточки, тёплый серый фон,
+   серо-розовые выделения, стальная серо-голубая шапка и кнопки.
    Включается атрибутом data-theme="light" на <html> (переключатель в шапке). */
 :root[data-theme="light"] {
   color-scheme: light;
-  --ground: #f7f4f5;
+  --ground: #f4f1f0;
   --surface: #ffffff;
-  --surface-raised: #f1e6e8;
-  --line-faint: #ddd3d6;
-  --line: #8a9cad;
-  --ink: #2b333b;
-  --muted: #6b7580;
-  --accent: #5b7489;
+  --surface-raised: #eadcda;
+  --line-faint: #dcd2d0;
+  --line: #9aa8b5;
+  --ink: #262b30;
+  --muted: #5e6873;
+  --accent: #4f6578;
   --on-accent: #ffffff;
-  --signal: #b0566b;
+  --signal: #a8646f;
   --ok: #2f7d68;
-  --glow-accent: 0 0 0 1px #5b7489, 0 0 0 4px rgba(91,116,137,0.18);
-  --glow-signal: 0 0 0 1px #b0566b, 0 0 0 4px rgba(176,86,107,0.16);
+  --glow-accent: 0 0 0 1px #4f6578, 0 0 0 4px rgba(79,101,120,0.18);
+  --glow-signal: 0 0 0 1px #a8646f, 0 0 0 4px rgba(168,100,111,0.16);
   --code-glow: transparent;
-  --backdrop: rgba(43,51,59,0.42);
-  --backdrop-strong: rgba(43,51,59,0.86);
-  --shadow: rgba(43,51,59,0.18);
-  --accent-stripe: #4a6073;
+  --backdrop: rgba(38,43,48,0.45);
+  --backdrop-strong: rgba(38,43,48,0.88);
+  --shadow: rgba(38,43,48,0.16);
+  --accent-stripe: #3f5263;
+  /* Шапка — сплошная стальная полоса */
+  --top-bg: #4f6578;
+  --top-ink: #ffffff;
+  --top-muted: #d3dbe2;
+  --top-line: rgba(255,255,255,0.55);
+  --top-mark: #eadcda;
 }
 
 /* Текстовые стили */

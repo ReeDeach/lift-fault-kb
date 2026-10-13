@@ -793,6 +793,18 @@ img.app-logo-light,.app-logo img.app-logo-light{display:none}
 .app-theme{display:inline-flex;align-items:center;justify-content:center;align-self:stretch;min-width:24px;padding:2px 5px;background:transparent;color:var(--accent);border-color:var(--line);cursor:pointer}
 .app-theme:hover,.app-theme:focus-visible{background:var(--surface-raised)}
 .app-user+.app-theme{margin-left:-10px}
+/* Светлая тема: стальная шапка со светлым текстом */
+:root[data-theme="light"] .fp-top{background:var(--top-bg);border-bottom-color:var(--top-bg)}
+:root[data-theme="light"] .fp-nav a{color:var(--top-muted)}
+:root[data-theme="light"] .fp-nav a:hover{color:var(--top-ink)}
+:root[data-theme="light"] .fp-nav a.on{color:var(--top-ink);border-bottom-color:var(--top-mark)}
+:root[data-theme="light"] .fp-sys .lft-badge,:root[data-theme="light"] #app-clock{color:var(--top-ink);border-color:var(--top-line)}
+:root[data-theme="light"] .fp-sys .lft-badge:hover,:root[data-theme="light"] .fp-sys .lft-badge:focus-visible{background:rgba(255,255,255,.14)}
+:root[data-theme="light"] .fp-nav [data-page].has-new::after{background:var(--top-mark);box-shadow:none}
+:root[data-theme="light"] .fp-top :focus-visible{outline-color:var(--top-ink)}
+/* Светлая тема: поля ввода белые, как карточки; розовый остаётся для выделений */
+:root[data-theme="light"] .fp-field,:root[data-theme="light"] .app-draft-input{background:var(--surface);color-scheme:light}
+:root[data-theme="light"] .fp-field:focus-within{border-color:var(--accent)}
 /* Светлая тема: без «экранного» свечения, тени мягче */
 :root[data-theme="light"] .app-acc.is-open .app-acc-head,:root[data-theme="light"] .app-msg.is-mine .app-msg-bubble{background:var(--surface-raised)}
 :root[data-theme="light"] .lft-window,:root[data-theme="light"] .app-req,:root[data-theme="light"] .app-req-card{box-shadow:0 1px 2px var(--shadow)}
