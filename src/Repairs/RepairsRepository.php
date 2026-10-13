@@ -27,6 +27,7 @@ final class RepairsRepository
      * @param array{period_from: \DateTimeImmutable, period_to: \DateTimeImmutable, section: string, rows: list<array<string, mixed>>} $report
      * @return array{report_id: int, rows: int, faults: int, matched: int, unmatched: int,
      *   by_mechanic: array<int, list<array{address: string, codes: string, info: string, open: bool}>>}
+     *   by_mechanic — новые вызовы (не из прошлой загрузки того же отчёта) по механикам, для уведомлений
      */
     public function import(array $report, ?string $fileName, string $login): array
     {
@@ -75,11 +76,13 @@ final class RepairsRepository
                     (int) $row['stopped'], $row['stops_30d'], $row['info'],
                     $row['codes'] === [] ? null : implode(' ', $row['codes']), $row['kind'], $lift['id'] ?? null,
                 ]);
+                // 1 — новая строка, 2 или 0 — заявка уже была в загруженном раньше отчёте
+                $isNew = $insert->rowCount() === 1;
                 $summary['rows']++;
                 $summary[$lift === null ? 'unmatched' : 'matched']++;
                 if ($row['kind'] === 'fault') {
                     $summary['faults']++;
-                    if ($lift !== null && $lift['mechanic_id'] !== null) {
+                    if ($isNew && $lift !== null && $lift['mechanic_id'] !== null) {
                         $summary['by_mechanic'][$lift['mechanic_id']][] = [
                             'address' => $row['address'],
                             'codes' => implode(' ', $row['codes']),

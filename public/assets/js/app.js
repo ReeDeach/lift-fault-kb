@@ -1298,6 +1298,8 @@
 
     function drawUser() {
         var $u = $('#app-user');
+        $('#app-push').prop('hidden', !session.role);
+        syncPush();
         if (!session.role) {
             $u.prop('hidden', true);
             return;
@@ -2447,7 +2449,7 @@
 
     function reqSwitchHtml(active) {
         return '<div class="app-types app-journal-tabs app-req-switch" role="tablist">'
-            + '<a class="fp-chip app-type" aria-pressed="' + (active === 'repairs') + '" href="' + hashFor('repairs', {}) + '">' + icon('fault', 'lft-icon--12') + 'Ремонт · 1С</a>'
+            + '<a class="fp-chip app-type" aria-pressed="' + (active === 'repairs') + '" href="' + hashFor('repairs', {}) + '">' + icon('smile', 'lft-icon--12') + 'Ремонт · 1С</a>'
             + '<a class="fp-chip app-type" aria-pressed="' + (active === 'requests') + '" href="' + hashFor('requests', {}) + '">' + icon('box', 'lft-icon--12') + 'Запчасти</a></div>';
     }
 
@@ -2528,7 +2530,7 @@
         $view.html(
             '<div class="app-pad app-req-page">'
             + reqSwitchHtml('repairs')
-            + '<div class="app-req-head"><div><p class="lft-label">' + icon('fault', 'lft-icon--12') + ' Заявки на ремонт · отчёт 1С</p>'
+            + '<div class="app-req-head"><div><p class="lft-label">' + icon('smile', 'lft-icon--12') + ' Заявки на ремонт · отчёт 1С</p>'
             + '<p class="fp-title" id="rep-title">' + (master ? 'Заявки участка' : 'Заявки по моим лифтам') + '</p>'
             + '<p class="app-muted" id="rep-period"></p></div>'
             + (master ? '<label class="lft-btn app-rep-upload">' + icon('arrow-up') + 'Загрузить отчёт 1С'
@@ -2970,6 +2972,253 @@
             ai.code = ex.c;
             submitAi();
         });
+
+    // ---------- Push-уведомления ----------
+    // Подписка — на устройство: в роли, в которой открыто приложение, со своим набором тем.
+    // На iPhone уведомления работают только у приложения, добавленного на экран «Домой».
+
+    var PUSH_PREFS = 'lft:push-prefs';
+    var push = { server: null, registration: null, on: false };
+
+    function pushSupported() {
+        return 'serviceWorker' in navigator && 'PushManager' in window && 'Notification' in window;
+    }
+
+    function isIos() {
+        return /iP(hone|ad|od)/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+    }
+
+    function isStandalone() {
+        return (window.matchMedia && window.matchMedia('(display-mode: standalone)').matches) || navigator.standalone === true;
+    }
+
+    function pushPrefs(value) {
+        var prefs = { chat: true, requests: true, repairs: true, quiet: false };
+        try {
+            if (value) {
+                localStorage.setItem(PUSH_PREFS, JSON.stringify(value));
+            }
+            $.extend(prefs, JSON.parse(localStorage.getItem(PUSH_PREFS) || '{}'));
+        } catch (e) { /* без хранилища — настройки по умолчанию */ }
+        return value || prefs;
+    }
+
+    function pushServer() {
+        return push.server ? Promise.resolve(push.server) : Promise.resolve(api('/api/push')).then(function (s) {
+            push.server = s;
+            return s;
+        });
+    }
+
+    function pushRegistration() {
+        if (!push.registration) {
+            push.registration = navigator.serviceWorker.register('/sw.js').then(function () {
+                return navigator.serviceWorker.ready;
+            });
+        }
+        return push.registration;
+    }
+
+    function keyBytes(b64) {
+        var raw = atob(b64.replace(/-/g, '+').replace(/_/g, '/') + '==='.slice((b64.length + 3) % 4));
+        var out = new Uint8Array(raw.length);
+        for (var i = 0; i < raw.length; i++) {
+            out[i] = raw.charCodeAt(i);
+        }
+        return out;
+    }
+
+    // Подписка этого браузера, если она сделана нашим ключом сервера (ключ сменили — подписки нет)
+    function currentSubscription() {
+        return pushRegistration().then(function (reg) {
+            return reg.pushManager.getSubscription();
+        }).then(function (sub) {
+            var key = sub && sub.options && sub.options.applicationServerKey;
+            if (sub && key && push.server && btoa(String.fromCharCode.apply(null, new Uint8Array(key))).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '') !== push.server.public_key) {
+                return sub.unsubscribe().then(function () {
+                    return null;
+                });
+            }
+            return sub;
+        });
+    }
+
+    function savePush(sub) {
+        return Promise.resolve(apiPost('/api/push/subscribe', { subscription: sub.toJSON(), role: session.role, prefs: pushPrefs() }));
+    }
+
+    function drawPushButton() {
+        $('#app-push').toggleClass('is-on', push.on);
+    }
+
+    // Вызывается в обработчике нажатия: iPhone спрашивает разрешение только в ответ на жест
+    function enablePush() {
+        return Notification.requestPermission().then(function (permission) {
+            if (permission !== 'granted') {
+                throw { message: 'Уведомления не разрешены. Разрешите их для этого сайта в настройках браузера' };
+            }
+            return currentSubscription();
+        }).then(function (sub) {
+            return sub || pushRegistration().then(function (reg) {
+                return reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: keyBytes(push.server.public_key) });
+            });
+        }).then(function (sub) {
+            return savePush(sub);
+        }).then(function () {
+            push.on = true;
+            drawPushButton();
+        });
+    }
+
+    function disablePush() {
+        return currentSubscription().then(function (sub) {
+            if (!sub) {
+                return null;
+            }
+            return Promise.resolve(apiPost('/api/push/unsubscribe', { endpoint: sub.endpoint })).catch(function () {
+                return null;
+            }).then(function () {
+                return sub.unsubscribe();
+            });
+        }).then(function () {
+            push.on = false;
+            drawPushButton();
+        });
+    }
+
+    // При входе и смене роли: сервер узнаёт, в какой роли теперь это устройство
+    function syncPush() {
+        if (!session.role || !pushSupported() || Notification.permission !== 'granted') {
+            push.on = false;
+            drawPushButton();
+            return;
+        }
+        pushServer().then(function (server) {
+            return server.enabled ? currentSubscription() : null;
+        }).then(function (sub) {
+            push.on = !!sub;
+            drawPushButton();
+            return sub ? savePush(sub) : null;
+        }).catch(function () { /* уведомления не мешают работе приложения */ });
+    }
+
+    function switchHtml(attr, on, title, hint, disabled) {
+        return '<label class="app-switch"><input type="checkbox" ' + attr + (on ? ' checked' : '') + (disabled ? ' disabled' : '') + '>'
+            + '<span class="app-switch-text">' + title + (hint ? '<small>' + hint + '</small>' : '') + '</span>'
+            + '<span class="app-switch-track" aria-hidden="true"></span></label>';
+    }
+
+    function openPushSheet() {
+        $('body').addClass('app-dd-lock').append('<div class="app-dd-backdrop app-sheet-backdrop"></div>'
+            + '<div class="app-sheet lft-window" role="dialog" aria-label="Уведомления"><div class="lft-window__bar">'
+            + '<span class="lft-label">' + icon('bell', 'lft-icon--12') + ' Уведомления</span>'
+            + '<button type="button" class="lft-window__x app-sheet-close" aria-label="Закрыть">×</button></div>'
+            + '<div class="lft-window__body" id="push-body">' + loading('Проверяем') + '</div></div>');
+        pushServer().then(function (server) {
+            return server.enabled && pushSupported() ? currentSubscription() : null;
+        }).then(function (sub) {
+            push.on = !!sub;
+            drawPushButton();
+            drawPushSheet();
+        }, function (error) {
+            // Ошибка API — своим окном, отказ браузера (service worker, push) — простым текстом
+            $('#push-body').html(error && error.status !== undefined
+                ? errorWindow(error, 'Уведомления')
+                : '<p class="app-text">Этот браузер не дал включить уведомления.</p>'
+                    + '<p class="lft-label">Откройте приложение в Chrome, Firefox, Edge или Safari (на iPhone — с экрана «Домой»). '
+                    + 'В режиме инкогнито уведомления не работают.</p>');
+        });
+    }
+
+    function drawPushSheet() {
+        var $body = $('#push-body');
+        if (!push.server.enabled) {
+            $body.html('<p class="app-text">На сервере уведомления пока не настроены.</p>');
+            return;
+        }
+        if (!pushSupported()) {
+            $body.html(isIos() && !isStandalone()
+                ? '<p class="app-text">На iPhone уведомления приходят только в приложение на экране «Домой».</p>'
+                    + '<ol class="app-push-steps"><li>В Safari нажмите «Поделиться» ' + icon('box', 'lft-icon--12') + '</li>'
+                    + '<li>Выберите «На экран Домой»</li><li>Откройте LFT со значка на экране и снова нажмите колокольчик</li></ol>'
+                : '<p class="app-text">Этот браузер не умеет получать уведомления. Откройте приложение в Chrome, Firefox, Edge или Safari.</p>');
+            return;
+        }
+        if (Notification.permission === 'denied') {
+            $body.html('<p class="app-text">Уведомления для этого сайта запрещены в настройках браузера.</p>'
+                + '<p class="lft-label">Chrome: значок слева от адреса → Настройки сайта → Уведомления → Разрешить. Потом откройте это окно снова.</p>');
+            return;
+        }
+        var prefs = pushPrefs();
+        var off = !push.on;
+        var topics = isMaster()
+            ? switchHtml('data-push-pref="requests"', prefs.requests, 'Заявки на запчасти', 'Новые заявки и ответы механиков', off)
+            : switchHtml('data-push-pref="repairs"', prefs.repairs, 'Заявки на ремонт', 'Новые вызовы по моим лифтам из отчёта 1С', off)
+                + switchHtml('data-push-pref="requests"', prefs.requests, 'Мои заявки на запчасти', 'Ответ мастера и смена статуса', off);
+        $body.html(
+            '<p class="app-text">Приходят, даже когда приложение закрыто. Настройки — для этого устройства, роль: '
+                + (isMaster() ? 'мастер' : 'механик') + '. О своих сообщениях не сообщаем.</p>'
+            + '<div class="app-push-list">' + switchHtml('data-push-main', push.on, '<b>Уведомления на этом устройстве</b>') + '</div>'
+            + '<div class="app-push-list">' + topics
+                + switchHtml('data-push-pref="chat"', prefs.chat, 'Общий чат', 'Сообщения механиков и мастера', off)
+                + switchHtml('data-push-pref="quiet"', prefs.quiet, 'Тишина ночью', 'С 22:00 до 7:00 ничего не приходит', off)
+            + '</div>'
+            + '<div class="app-push-actions"><button type="button" class="lft-btn lft-btn--ghost" id="push-test"' + (off ? ' disabled' : '') + '>'
+                + icon('bell') + 'Проверить</button><p class="lft-label" id="push-msg" role="status"></p></div>'
+        );
+    }
+
+    function pushMessage(text, bad) {
+        $('#push-msg').text(text).toggleClass('app-bad', !!bad);
+    }
+
+    $(document)
+        .on('click', '#app-push', openPushSheet)
+        .on('change', '[data-push-main]', function () {
+            var $box = $(this).prop('disabled', true);
+            var action = this.checked ? enablePush() : disablePush();
+            action.then(drawPushSheet, function (error) {
+                $box.prop({ checked: push.on, disabled: false });
+                // Ошибки браузера (DOMException) приходят по-английски: показываем только их вид
+                pushMessage(error && error.name && error.status === undefined
+                    ? 'Браузер не дал подписаться (' + error.name + '). Попробуйте ещё раз или другой браузер'
+                    : (error && error.message) || 'Не получилось', true);
+            });
+        })
+        .on('change', '[data-push-pref]', function () {
+            var prefs = pushPrefs();
+            prefs[$(this).data('push-pref')] = this.checked;
+            pushPrefs(prefs);
+            currentSubscription().then(function (sub) {
+                return sub ? savePush(sub) : null;
+            }).then(function () {
+                pushMessage('Сохранено');
+            }, function (error) {
+                pushMessage(error && error.message ? error.message : 'Не сохранилось', true);
+            });
+        })
+        .on('click', '#push-test', function () {
+            pushMessage('Отправляем…');
+            currentSubscription().then(function (sub) {
+                if (!sub) {
+                    throw { message: 'Устройство не подписано: включите уведомления заново' };
+                }
+                return apiPost('/api/push/test', { endpoint: sub.endpoint });
+            }).then(function () {
+                pushMessage('Отправлено: уведомление придёт через несколько секунд');
+            }, function (error) {
+                pushMessage(error && error.message ? error.message : 'Не отправилось', true);
+            });
+        });
+
+    // Нажали на уведомление при открытом приложении: service worker просит открыть нужный экран
+    if ('serviceWorker' in navigator) {
+        navigator.serviceWorker.addEventListener('message', function (e) {
+            if (e.data && e.data.type === 'open' && typeof e.data.hash === 'string' && e.data.hash.charAt(0) === '#') {
+                location.hash = e.data.hash;
+            }
+        });
+    }
 
     // ---------- Тема: тёмная «терминал» или светлая в цветах фирмы ----------
 

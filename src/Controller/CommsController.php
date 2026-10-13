@@ -11,6 +11,7 @@ use App\Comms\PhotoStore;
 use App\Http\HttpException;
 use App\Http\Request;
 use App\Http\Response;
+use App\Push\Notifier;
 
 /**
  * Связь в бригаде. От имени мастера пишет тот, у кого есть права мастера и кто передал
@@ -34,6 +35,7 @@ final class CommsController
         private readonly IdentityResolver $auth,
         private readonly CommsRepository $comms,
         private readonly PhotoStore $photos,
+        private readonly ?Notifier $notifier = null,
     ) {
     }
 
@@ -102,12 +104,15 @@ final class CommsController
         $body = $request->body;
         $this->allowedFields($body, ['body', 'photos', 'as']);
 
-        return Response::json(['item' => $this->comms->postChat(
+        $message = $this->comms->postChat(
             $who,
             $this->asMaster($who, $body['as'] ?? null),
             $this->text($body['body'] ?? null, 'body', self::BODY_MAX),
             $this->photoIds($body['photos'] ?? []),
-        )], 201);
+        );
+        $this->notifier?->chat($who, $message);
+
+        return Response::json(['item' => $message], 201);
     }
 
     public function requests(Request $request): Response
@@ -158,13 +163,16 @@ final class CommsController
             throw new HttpException(400, 'Ошибка в данных', $errors);
         }
 
-        return Response::json(['item' => $this->comms->createRequest($who, [
+        $item = $this->comms->createRequest($who, [
             'title' => (string) $data['title'],
             'quantity' => $data['quantity'],
             'urgent' => $urgent,
             'lift_id' => $lift,
             'body' => $data['body'],
-        ], $this->photoIds($body['photos'] ?? []))], 201);
+        ], $this->photoIds($body['photos'] ?? []));
+        $this->notifier?->requestCreated($who, $item);
+
+        return Response::json(['item' => $item], 201);
     }
 
     public function postToRequest(Request $request): Response
@@ -178,14 +186,21 @@ final class CommsController
             throw new HttpException(400, 'Ошибка в данных', ['status' => 'Допустимо: ' . implode(', ', CommsRepository::STATUSES)]);
         }
 
-        return Response::json(['item' => $this->comms->postToRequest(
+        $id = $this->id($request);
+        $asMaster = $this->asMaster($who, $body['as'] ?? null);
+        $message = $this->comms->postToRequest(
             $who,
-            $this->id($request),
-            $this->asMaster($who, $body['as'] ?? null),
+            $id,
+            $asMaster,
             $this->text($body['body'] ?? null, 'body', self::BODY_MAX),
             $status,
             $this->photoIds($body['photos'] ?? []),
-        )], 201);
+        );
+        if ($this->notifier?->enabled()) {
+            $this->notifier->requestMessage($who, $asMaster, $this->comms->request($who, $id, $asMaster), $message);
+        }
+
+        return Response::json(['item' => $message], 201);
     }
 
     public function updates(Request $request): Response

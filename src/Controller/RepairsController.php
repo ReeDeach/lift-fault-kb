@@ -9,6 +9,7 @@ use App\Auth\IdentityResolver;
 use App\Http\HttpException;
 use App\Http\Request;
 use App\Http\Response;
+use App\Push\Notifier;
 use App\Repairs\RepairsRepository;
 use App\Repairs\ReportParser;
 
@@ -25,6 +26,7 @@ final class RepairsController
     public function __construct(
         private readonly IdentityResolver $auth,
         private readonly RepairsRepository $repairs,
+        private readonly ?Notifier $notifier = null,
     ) {
     }
 
@@ -47,6 +49,8 @@ final class RepairsController
 
         $report = ReportParser::parse($bytes);
         $summary = $this->repairs->import($report, is_string($name) ? $name : null, $who->login);
+        // Механикам — о новых вызовах по их лифтам (при повторной загрузке отчёта не повторяется)
+        $this->notifier?->repairsImported($summary['by_mechanic']);
 
         return Response::json([
             'report_id' => $summary['report_id'],

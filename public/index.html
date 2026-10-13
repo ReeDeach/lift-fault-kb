@@ -5,6 +5,13 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Lift Fault Terminal — база неисправностей лифтов</title>
 <link rel="icon" href="/assets/img/lft-mark.svg" type="image/svg+xml">
+<link rel="manifest" href="/manifest.webmanifest">
+<link rel="apple-touch-icon" href="/assets/img/apple-touch-icon.png">
+<meta name="theme-color" content="#0e0c0b">
+<meta name="apple-mobile-web-app-title" content="LFT">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black">
 <script>
   // Тема до отрисовки, чтобы страница не мигала: выбор пользователя, иначе тема телефона
   (function () {
@@ -33,6 +40,7 @@
     <div class="fp-sys">
       <button type="button" class="lft-badge app-user" id="app-user" hidden title="Сменить роль"></button>
       <button type="button" class="lft-badge app-theme" id="app-theme"></button>
+      <button type="button" class="lft-badge app-theme app-push" id="app-push" hidden aria-label="Уведомления" title="Уведомления"><span class="lft-icon lft-icon--bell lft-icon--12" aria-hidden="true"></span></button>
       <span class="lft-badge app-status" id="app-status"><span class="lft-icon lft-icon--12"></span>связь…</span>
       <span class="lft-label" id="app-clock"></span>
     </div>
