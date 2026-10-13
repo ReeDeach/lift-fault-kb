@@ -954,8 +954,13 @@
         var modelName = model ? $('#ai-model option:selected').text().replace(/\s*\(\d+\)$/, '') : 'все модели';
         var question = '<div class="ch-q"><span class="lft-label">' + (followUp ? 'Уточнение' : 'Вы') + ' · ' + esc(modelName)
             + (code ? ' · код ' + esc(code) : '') + '</span>' + esc(text) + '</div>';
-        var $pending = $('<div class="ch-progress app-ai-wait"><div><span class="lft-label">Ищем в базе, спрашиваем ИИ</span>'
-            + '<span class="lft-label app-accent">до 30 с</span></div><div class="ch-meter"><i></i></div></div>');
+        var $pending = $('<div class="ch-progress app-ai-wait" role="status"><div><span class="lft-label">Ищем в базе, спрашиваем ИИ</span>'
+            + '<span class="lft-label app-accent app-ai-elapsed">0 с</span></div><div class="ch-meter"><i></i></div></div>');
+        // Счётчик секунд — живой признак работы при любых настройках анимации телефона
+        var started = Date.now();
+        var elapsedTimer = setInterval(function () {
+            $pending.find('.app-ai-elapsed').text(Math.round((Date.now() - started) / 1000) + ' с');
+        }, 1000);
 
         var body = { description: aiDescription(text) };
         if (code) {
@@ -999,6 +1004,7 @@
                 $error.text($.map(error.fields, function (t) { return t; }).join(' · ')).prop('hidden', false);
             }
         }).always(function () {
+            clearInterval(elapsedTimer);
             $('#ai-send').prop('disabled', false);
             updateAiForm();
         });

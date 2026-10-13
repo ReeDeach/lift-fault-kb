@@ -390,7 +390,10 @@ a.app-hit:hover .app-hit-title{color:var(--accent)}
 .app-ai-safety .lft-label{display:block;color:var(--accent);margin-bottom:8px}
 .app-ai-safety ul{margin:0;padding:0;list-style:none;display:grid;gap:8px;font:400 13px/18px var(--font-sans);letter-spacing:0;text-transform:none;color:var(--ink)}
 .app-ai-safety li+li{padding-top:8px;border-top:1px solid var(--line-faint)}
-@media (prefers-reduced-motion:reduce){.app-ai-wait .ch-meter i{animation:none}}
+/* «Уменьшить движение» на телефоне: вместо бегущей полосы — плавное мерцание, чтобы не казалось, что всё зависло */
+@media (prefers-reduced-motion:reduce){.app-ai-wait .ch-meter i{width:100%;animation:app-pulse 1.6s ease-in-out infinite}}
+@keyframes app-pulse{50%{opacity:.25}}
+.app-ai-elapsed{font-variant-numeric:tabular-nums}
 
 /* Свой выпадающий список вместо системного */
 .app-dd-native{position:absolute;width:1px;height:1px;opacity:0;pointer-events:none}
