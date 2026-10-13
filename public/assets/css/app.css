@@ -562,10 +562,17 @@ a.app-type{display:inline-flex;align-items:center;text-decoration:none}
   .app-ai-form .app-field-error{position:static}
   .app-login-actions .lft-btn{min-width:0;flex:1 1 100%}
   .app-demo{padding:8px 16px}
-  .app-user span{max-width:110px}
+  .app-user span{max-width:100px}
   /* После входа в шапке место под имя: «база онлайн» на телефоне не показываем */
   .app-user:not([hidden]) ~ .app-status{display:none}
-  .fp-sys{min-width:0}
+  /* Шапка телефона: логотип слева, справа имя, тема и колокольчик с равными промежутками и отступом 16px от края.
+     Не хватает места — сжимается имя (с многоточием), кнопки не вылезают за край */
+  .fp-top{gap:12px}
+  .app-logo{flex:none}
+  .fp-sys{min-width:0;margin-left:auto;gap:6px}
+  .fp-sys>*{flex:none}
+  .fp-sys>.app-user{flex:0 1 auto;min-width:0}
+  .app-user span{min-width:0}
   .app-sheet{left:0;right:0;top:auto;bottom:0;transform:none;width:auto;max-height:88vh;border-left:0;border-right:0;border-bottom:0;padding-bottom:env(safe-area-inset-bottom);animation:app-sheet .18s ease-out}
   .app-places{max-height:200px}
   .app-pj-list{padding:16px!important}
@@ -876,3 +883,7 @@ img.app-logo-light,.app-logo img.app-logo-light{display:none}
 .app-push-actions .lft-label{margin:0}
 .app-push-steps{margin:0;padding-left:20px;display:grid;gap:8px;font-size:15px;line-height:22px}
 .app-push-steps .lft-icon{vertical-align:-1px}
+/* Телефон: у кнопок шапки равные промежутки (gap), без стыковки встык */
+@media (max-width:1023px){.app-user+.app-theme,.app-theme+.app-push{margin-left:0}}
+/* Узкие телефоны (360px): логотип чуть меньше, чтобы имя не сжималось до пары букв */
+@media (max-width:400px){.fp-top img{height:28px}}
