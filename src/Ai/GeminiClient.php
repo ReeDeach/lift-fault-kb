@@ -84,7 +84,7 @@ final class GeminiClient implements LanguageModel
 
         $models = array_values(array_filter(array_map('trim', [
             Env::get('AI_MODEL', 'gemini-3.5-flash'),
-            ...explode(',', Env::get('AI_FALLBACK_MODELS', 'gemini-3.5-flash-lite')),
+            ...explode(',', Env::get('AI_FALLBACK_MODELS', 'gemini-3.1-flash-lite,gemini-3.5-flash-lite')),
         ])));
 
         $timeout = max(3, (int) Env::get('AI_TIMEOUT', '15'));
