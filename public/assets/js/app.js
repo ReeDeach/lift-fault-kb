@@ -390,6 +390,8 @@
             if (token !== renderToken) {
                 return;
             }
+            // Модели без кодов в списке не показываем
+            models = $.grep(models, function (m) { return m.codes_count > 0; });
             var html = '<span class="lft-label app-list-head">Модели · ' + models.length + '</span><div class="app-acc-list">';
             $.each(models, function (_, m) {
                 html += accHtml('m' + m.id, m.manufacturer.name, m.name, m.codes_count);
