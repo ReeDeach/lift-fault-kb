@@ -1391,6 +1391,7 @@
             + (master ? '<label class="fp-chip app-select">' + icon('settings')
                 + '<select id="pj-mechanic" aria-label="Механик"><option value="">Все механики</option></select></label>' : '')
             + '<button class="lft-btn" type="submit">Найти</button>'
+            + '<button type="button" class="lft-btn lft-btn--ghost app-add-entry" data-add-entry>' + icon('journal') + 'Добавить запись</button>'
             + tabs
             + '</form>'
             + '<div id="pj-body">' + loading('Загружаем журнал') + '</div>'
@@ -1426,7 +1427,8 @@
             $body.html('<div class="app-pad"><p class="lft-label">Журнал</p><p class="fp-title">' + (params.q || params.lift ? 'Ничего не нашлось' : 'Записей пока нет') + '</p>'
                 + '<p class="fp-desc">Записи появляются из ИИ-диагностики: разберите неисправность и нажмите «Сохранить в журнал» — '
                 + 'адрес и лифт выбираются в два касания, текст записи соберётся сам.</p>'
-                + '<p class="app-nf-back"><a class="lft-btn" href="#/ai">' + icon('chip') + ' Открыть ИИ-диагностику</a></p></div>');
+                + '<p class="app-nf-back"><a class="lft-btn" href="#/ai">' + icon('chip') + ' Открыть ИИ-диагностику</a>'
+                + ' <button type="button" class="lft-btn lft-btn--ghost app-add-entry" data-add-entry>' + icon('journal') + 'Добавить вручную</button></p></div>');
             return;
         }
 
@@ -1506,22 +1508,27 @@
 
     // ---------- Сохранение разбора из ИИ в журнал ----------
     // Механик выбирает, чей лифт, адрес и номер лифта, а текст записи собирается сам из переписки.
+    // Та же шторка открывается из журнала кнопкой «Добавить запись»: тогда записи без ИИ,
+    // например закрыть заявку по лифту, и поля заполняются вручную.
 
-    var saving = { mechanic: null, place: null, lift: null, draft: null, draftRequest: null };
+    var saving = { mechanic: null, place: null, lift: null, draft: null, draftRequest: null, manual: false };
 
-    function openSaveSheet() {
-        if (!ai.messages.length) {
+    function openSaveSheet(manual) {
+        if (!manual && !ai.messages.length) {
             return;
         }
-        saving = { mechanic: session.me.mechanic ? session.me.mechanic.id : null, place: null, lift: null, draft: null, draftRequest: null };
+        saving = { mechanic: session.me.mechanic ? session.me.mechanic.id : null, place: null, lift: null, draft: null, draftRequest: null, manual: !!manual };
+        var title = manual ? 'Новая запись в журнал' : 'Сохранить в журнал';
         $('body').addClass('app-dd-lock').append('<div class="app-dd-backdrop app-sheet-backdrop"></div>'
-            + '<div class="app-sheet lft-window" role="dialog" aria-label="Сохранить в журнал"><div class="lft-window__bar">'
-            + '<span class="lft-label">' + icon('journal', 'lft-icon--12') + ' Сохранить в журнал</span>'
+            + '<div class="app-sheet lft-window" role="dialog" aria-label="' + title + '"><div class="lft-window__bar">'
+            + '<span class="lft-label">' + icon('journal', 'lft-icon--12') + ' ' + title + '</span>'
             + '<button type="button" class="lft-window__x app-sheet-close" aria-label="Закрыть">×</button></div>'
             + '<div class="lft-window__body" id="save-body">' + loading('Загружаем лифты') + '</div></div>');
 
-        // Черновик готовится сразу, пока механик выбирает лифт
-        saving.draftRequest = apiPost('/api/journal/draft', { messages: ai.messages, answers: ai.answers });
+        // Черновик из переписки готовится сразу, пока механик выбирает лифт. Вручную — пустой
+        saving.draftRequest = manual
+            ? $.Deferred().resolve({ draft: { title: '', status: 'resolved' }, source: 'manual' }).promise()
+            : apiPost('/api/journal/draft', { messages: ai.messages, answers: ai.answers });
         loadLifts().then(drawSaveSheet, function (error) {
             $('#save-body').html(errorWindow(error, 'Лифты'));
         });
@@ -1581,7 +1588,7 @@
     function chooseLift(id) {
         saving.lift = id;
         $('.app-liftno').attr('aria-pressed', 'false').filter('[data-save-lift="' + id + '"]').attr('aria-pressed', 'true');
-        $('#save-draft').html(loading('Собираем запись из переписки'));
+        $('#save-draft').html(loading(saving.manual ? 'Открываем запись' : 'Собираем запись из переписки'));
         saving.draftRequest.then(function (result) {
             saving.draft = result;
             drawDraft(result);
@@ -1605,9 +1612,9 @@
         };
         $('#save-draft').html(
             '<div class="app-step app-draft">'
-            + '<span class="lft-label">4 · Запись' + (result.source === 'ai' ? ' · собрана ИИ, проверьте' : ' · по шаблону') + '</span>'
+            + '<span class="lft-label">4 · Запись' + (result.source === 'ai' ? ' · собрана ИИ, проверьте' : (result.source === 'manual' ? ' · заполните' : ' · по шаблону')) + '</span>'
             + '<label class="app-draft-field"><span class="lft-label">Коды</span><input class="app-draft-input" name="codes" value="' + esc(d.codes || '') + '" autocapitalize="characters" autocorrect="off" spellcheck="false"></label>'
-            + field('title', 'Суть', d.title, 2)
+            + field('title', 'Суть' + (saving.manual ? ' · например, заявка: лифт стоит, код 50' : ''), d.title, 2)
             + field('symptoms', 'Что было', d.symptoms, 3)
             + field('cause', 'Причина', d.cause, 2)
             + field('work_done', 'Что сделано', d.work_done, 2)
@@ -1630,10 +1637,12 @@
             body[this.name] = $.trim($(this).val());
         });
         body.status = $('[data-save-status][aria-pressed="true"]').data('save-status') || 'monitoring';
-        body.chat = $.map(ai.messages, function (m, i) {
-            var a = ai.answers[i];
-            return 'Механик: ' + m + (a && a.summary ? '\nИИ: ' + a.summary : '');
-        }).join('\n\n');
+        if (!saving.manual) {
+            body.chat = $.map(ai.messages, function (m, i) {
+                var a = ai.answers[i];
+                return 'Механик: ' + m + (a && a.summary ? '\nИИ: ' + a.summary : '');
+            }).join('\n\n');
+        }
 
         $('#save-submit').prop('disabled', true).attr('aria-busy', 'true');
         apiPost('/api/journal', body).then(function (data) {
@@ -1644,7 +1653,9 @@
                 + '<p class="app-text">' + esc(liftName(data.item.lift)) + '</p>'
                 + '<p class="app-text app-muted">' + esc(data.item.title) + '</p>'
                 + '<div class="app-login-actions"><a class="lft-btn" href="' + hashFor('journal', { lift: data.item.lift.id }) + '" data-close-sheet>Открыть журнал лифта</a>'
-                + '<button type="button" class="lft-btn lft-btn--ghost" id="save-new">Новый разбор</button></div>'
+                + (saving.manual
+                    ? '<button type="button" class="lft-btn lft-btn--ghost" data-close-sheet data-refresh>Готово</button></div>'
+                    : '<button type="button" class="lft-btn lft-btn--ghost" id="save-new">Новый разбор</button></div>')
             );
         }, function (error) {
             $('#save-submit').prop('disabled', false).removeAttr('aria-busy');
@@ -2523,8 +2534,16 @@
                 window.alert('Не удалось удалить запись');
             });
         })
-        .on('click', '#ai-save', openSaveSheet)
+        .on('click', '#ai-save', function () {
+            openSaveSheet(false);
+        })
+        .on('click', '[data-add-entry]', function () {
+            openSaveSheet(true);
+        })
         .on('click', '.app-sheet-close, .app-sheet-backdrop, [data-close-sheet]', closeSaveSheet)
+        .on('click', '[data-refresh]', function () {
+            render();
+        })
         .on('click', '[data-save-mechanic]', function () {
             saving.mechanic = Number($(this).data('save-mechanic'));
             $('[data-save-mechanic]').attr('aria-pressed', 'false');

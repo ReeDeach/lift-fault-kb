@@ -774,3 +774,10 @@ a.app-type{display:inline-flex;align-items:center;text-decoration:none}
   .app-msg{animation:app-in .22s ease-out both}
   .app-viewer{animation:app-fade .16s ease-out both}
 }
+
+/* Журнал: ручная запись (например, закрыть заявку по лифту без ИИ) */
+.app-add-entry{display:inline-flex;gap:8px;align-items:center;justify-content:center;white-space:nowrap}
+.app-add-entry .lft-icon{width:16px;height:16px}
+@media (max-width:1023px){
+  #pj-form .app-add-entry{flex:1 1 100%}
+}
