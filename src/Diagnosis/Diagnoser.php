@@ -69,11 +69,7 @@ final class Diagnoser
     public function diagnose(array $input, array $candidates): array
     {
         if ($candidates['causes'] === []) {
-            return self::respond(
-                self::aiStatus('skipped', 'В базе нет подходящих записей. Уточните описание или впишите код в поле «Код на индикаторе». ИИ не вызывался, чтобы не угадывать.'),
-                [],
-                $candidates,
-            );
+            return self::respond(self::aiStatus('skipped', self::noCausesMessage($candidates)), [], $candidates);
         }
         if ($this->model === null) {
             return self::respond(
@@ -112,6 +108,26 @@ final class Diagnoser
         }
 
         return self::respond($ai, $checked['causes'], $candidates);
+    }
+
+    /**
+     * Причин нет — но код или похожие случаи могли найтись: текст не должен им противоречить.
+     *
+     * @param array<string, mixed> $candidates
+     */
+    private static function noCausesMessage(array $candidates): string
+    {
+        $codes = array_values(array_unique(array_map(static fn (array $c): string => (string) $c['code'], $candidates['codes'] ?? [])));
+        $skip = ' ИИ не вызывался: без причин из базы он бы только угадывал.';
+        if ($codes !== []) {
+            return (count($codes) === 1 ? 'Код ' . $codes[0] . ' есть в базе, но причины к нему' : 'Коды ' . implode(', ', $codes) . ' есть в базе, но причины к ним')
+                . ' ещё не записаны. Смотрите описание кода и похожие случаи из журнала ниже.' . $skip;
+        }
+        if (($candidates['cases'] ?? []) !== []) {
+            return 'Причин в базе по этому описанию не нашлось, но есть похожие случаи из журнала ниже.' . $skip;
+        }
+
+        return 'В базе нет подходящих записей. Уточните описание или напишите код, например «ошибка 50».' . $skip;
     }
 
     /**
