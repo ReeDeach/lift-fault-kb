@@ -1513,13 +1513,14 @@
     // Та же шторка открывается из журнала кнопкой «Добавить запись»: тогда записи без ИИ,
     // например закрыть заявку по лифту, и поля заполняются вручную.
 
-    var saving = { mechanic: null, place: null, lift: null, draft: null, draftRequest: null, manual: false };
+    var saving = { mechanic: null, place: null, lift: null, draft: null, draftRequest: null, manual: false, preset: null };
 
-    function openSaveSheet(manual) {
+    // preset — запись по заявке 1С: {repair_id, lift: {id, label} | null, draft: {codes, title, …}}
+    function openSaveSheet(manual, preset) {
         if (!manual && !ai.messages.length) {
             return;
         }
-        saving = { mechanic: session.me.mechanic ? session.me.mechanic.id : null, place: null, lift: null, draft: null, draftRequest: null, manual: !!manual };
+        saving = { mechanic: session.me.mechanic ? session.me.mechanic.id : null, place: null, lift: null, draft: null, draftRequest: null, manual: !!manual, preset: preset || null };
         var title = manual ? 'Новая запись в журнал' : 'Сохранить в журнал';
         $('body').addClass('app-dd-lock').append('<div class="app-dd-backdrop app-sheet-backdrop"></div>'
             + '<div class="app-sheet lft-window" role="dialog" aria-label="' + title + '"><div class="lft-window__bar">'
@@ -1529,8 +1530,14 @@
 
         // Черновик из переписки готовится сразу, пока механик выбирает лифт. Вручную — пустой
         saving.draftRequest = manual
-            ? $.Deferred().resolve({ draft: { title: '', status: 'resolved' }, source: 'manual' }).promise()
+            ? $.Deferred().resolve({ draft: $.extend({ title: '', status: 'resolved' }, preset ? preset.draft : {}), source: 'manual' }).promise()
             : apiPost('/api/journal/draft', { messages: ai.messages, answers: ai.answers });
+        if (preset && preset.lift) {
+            // Лифт заявки уже известен: сразу к записи
+            $('#save-body').html('<div class="app-step"><span class="lft-label">Лифт</span><p class="app-text">' + esc(preset.lift.label) + '</p></div><div id="save-draft"></div>');
+            chooseLift(preset.lift.id);
+            return;
+        }
         loadLifts().then(drawSaveSheet, function (error) {
             $('#save-body').html(errorWindow(error, 'Лифты'));
         });
@@ -1603,7 +1610,7 @@
         var d = result.draft;
         var now = new Date();
         var pad = function (n) { return (n < 10 ? '0' : '') + n; };
-        var local = now.getFullYear() + '-' + pad(now.getMonth() + 1) + '-' + pad(now.getDate()) + 'T' + pad(now.getHours()) + ':' + pad(now.getMinutes());
+        var local = d.occurred_at || (now.getFullYear() + '-' + pad(now.getMonth() + 1) + '-' + pad(now.getDate()) + 'T' + pad(now.getHours()) + ':' + pad(now.getMinutes()));
         var statusChips = '';
         $.each(STATUSES, function (key, s) {
             statusChips += '<button type="button" class="fp-chip app-type" data-save-status="' + key + '" aria-pressed="' + (d.status === key) + '">' + esc(s.text) + '</button>';
@@ -1649,6 +1656,9 @@
         $('#save-submit').prop('disabled', true).attr('aria-busy', 'true');
         apiPost('/api/journal', body).then(function (data) {
             liftsRequest = null;
+            if (saving.preset && saving.preset.repair_id) {
+                apiPost('/api/repairs/' + saving.preset.repair_id + '/journal', { entry_id: data.item.id, as: asRole() });
+            }
             $('.app-sheet .lft-window__body').html(
                 '<div class="app-done">' + icon('ok') + '</div>'
                 + '<p class="fp-title">Записано</p>'
@@ -2071,6 +2081,7 @@
         var open = master && params.all !== '1';
         $view.html(
             '<div class="app-pad app-req-page">'
+            + reqSwitchHtml('requests')
             + '<div class="app-req-head"><div><p class="lft-label">' + icon('box', 'lft-icon--12') + ' Заявки на запчасти</p>'
             + '<p class="fp-title">' + (master ? 'Заявки механиков' : 'Мои заявки') + '</p></div>'
             + (master ? '' : '<a class="lft-btn" href="' + hashFor('requests', { new: 1 }) + '">' + icon('box') + 'Новая заявка</a>')
@@ -2430,6 +2441,241 @@
             }
         });
 
+    // ---------- Заявки на ремонт из отчёта 1С ----------
+    // Мастер каждое утро загружает отчёт 1С (XLSX с почты). Механик видит заявки по своим
+    // лифтам и закрывает их записью в журнал: лифт, коды и время уже подставлены.
+
+    function reqSwitchHtml(active) {
+        return '<div class="app-types app-journal-tabs app-req-switch" role="tablist">'
+            + '<a class="fp-chip app-type" aria-pressed="' + (active === 'repairs') + '" href="' + hashFor('repairs', {}) + '">' + icon('fault', 'lft-icon--12') + 'Ремонт · 1С</a>'
+            + '<a class="fp-chip app-type" aria-pressed="' + (active === 'requests') + '" href="' + hashFor('requests', {}) + '">' + icon('box', 'lft-icon--12') + 'Запчасти</a></div>';
+    }
+
+    function shortTime(iso) {
+        var m = /^\d{4}-(\d{2})-(\d{2})T(\d{2}):(\d{2})/.exec(iso || '');
+        return m ? m[2] + '.' + m[1] + ' ' + m[3] + ':' + m[4] : '';
+    }
+
+    function repeatClass(n) {
+        return n >= 5 ? ' r5' : (n >= 4 ? ' r4' : (n >= 2 ? ' r2' : ''));
+    }
+
+    // «44 C6» — одна плашка: подсказка C* относится к коду перед ней
+    function codeGroups(codes) {
+        var groups = [];
+        $.each(codes, function (_, c) {
+            if (/^C\d+$/.test(c) && groups.length) {
+                groups[groups.length - 1].push(c);
+            } else {
+                groups.push([c]);
+            }
+        });
+        return $.map(groups, function (g) { return g.join(' '); });
+    }
+
+    function liftLabel(lift) {
+        return liftName({ address: lift.address, object_name: lift.object_name, lift_no: lift.lift_no });
+    }
+
+    function repairCardHtml(r, master) {
+        var codes = codeGroups(r.codes);
+        var html = '<li class="app-rep' + (r.finished_at ? '' : ' is-open') + '" data-repair="' + r.id + '">'
+            + '<div class="app-rep-top"><span class="app-rep-num">' + esc(r.reg) + '</span>'
+            + (r.finished_at ? '' : '<span class="lft-badge lft-badge--alarm">не закрыта</span>')
+            + (r.kind === 'planned' ? '<span class="lft-badge">плановая</span>' : '')
+            + (r.stopped ? '<span class="lft-badge lft-badge--warn">лифт стоит</span>' : '')
+            + '<span class="app-rep-count' + repeatClass(r.stops_30d) + '" title="Остановок за 30 дней">' + r.stops_30d + ' за 30 дн.</span></div>'
+            + '<p class="app-rep-addr">' + esc(r.address) + (r.floor ? ' · эт. ' + esc(r.floor) : '') + '</p>'
+            + '<p class="app-rep-time lft-label">' + esc(shortTime(r.started_at)) + ' → ' + (r.finished_at ? esc(shortTime(r.finished_at)) : 'ещё не закрыта') + '</p>';
+        if (codes.length) {
+            html += '<div class="app-rep-codes">';
+            $.each(codes, function (_, c) {
+                html += '<a class="app-rep-code" href="' + hashFor('codes', { code: c }) + '" title="Открыть код: что значит, причины">' + esc(c) + '</a>';
+            });
+            html += '</div>';
+        }
+        var notes = $.grep((r.info || '').split(/\s*;\s*/), function (p) { return p && !/^\d{1,3}(\s+[CС]\d{1,2})?(\s+MLM)?$/i.test(p); });
+        if (notes.length) {
+            html += '<p class="app-rep-note">' + esc(notes.join(' · ')) + '</p>';
+        }
+        if (r.lift) {
+            html += '<p class="app-rep-who">' + icon('settings', 'lft-icon--12') + esc(r.lift.mechanic || 'без механика') + ' · ' + esc(liftLabel(r.lift)) + '</p>';
+        } else if (master) {
+            html += '<div class="app-rep-match"><span class="lft-label">Чей это лифт? Выберите один раз — номер ' + esc(r.reg) + ' запомнится</span>';
+            if (r.candidates.length) {
+                $.each(r.candidates, function (_, c) {
+                    html += '<button type="button" class="fp-chip app-type" data-repair-lift="' + c.id + '">'
+                        + esc(liftLabel(c)) + (c.mechanic ? ' · ' + esc(c.mechanic) : '') + (c.reg ? ' · №' + esc(c.reg) : '') + '</button>';
+                });
+            } else {
+                html += '<span class="app-muted">Адреса нет в списках лифтов бригады</span>';
+            }
+            html += '</div>';
+        }
+        if (r.journal_entry_id) {
+            html += '<a class="app-rep-done lft-label" href="' + hashFor('journal', { lift: r.lift ? r.lift.id : '' }) + '">' + icon('ok', 'lft-icon--12') + 'Закрыта записью в журнале</a>';
+        } else if (r.kind === 'fault') {
+            html += '<button type="button" class="lft-btn lft-btn--ghost app-rep-close" data-repair-close="' + r.id + '">' + icon('journal', 'lft-icon--12') + 'Закрыть записью в журнал</button>';
+        }
+        return html + '</li>';
+    }
+
+    var repairsData = null;
+    var repairsKind = 'fault';
+
+    function renderRepairs(params, token) {
+        var master = isMaster();
+        $view.html(
+            '<div class="app-pad app-req-page">'
+            + reqSwitchHtml('repairs')
+            + '<div class="app-req-head"><div><p class="lft-label">' + icon('fault', 'lft-icon--12') + ' Заявки на ремонт · отчёт 1С</p>'
+            + '<p class="fp-title" id="rep-title">' + (master ? 'Заявки участка' : 'Заявки по моим лифтам') + '</p>'
+            + '<p class="app-muted" id="rep-period"></p></div>'
+            + (master ? '<label class="lft-btn app-rep-upload">' + icon('arrow-up') + 'Загрузить отчёт 1С'
+                + '<input type="file" id="rep-file" accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"></label>' : '')
+            + '</div>'
+            + '<p class="app-field-error lft-label" id="rep-msg" hidden></p>'
+            + '<div id="rep-body">' + loading() + '</div>'
+            + '</div>'
+        );
+
+        api('/api/repairs', { as: asRole(), report: params.report }).then(function (data) {
+            if (token !== renderToken) {
+                return;
+            }
+            repairsData = data;
+            drawRepairs();
+        }, function (error) {
+            $('#rep-body').html(errorWindow(error, 'Заявки на ремонт'));
+        });
+    }
+
+    function drawRepairs() {
+        var data = repairsData;
+        var master = isMaster();
+        if (!data.report) {
+            $('#rep-body').html('<p class="app-empty">' + (master
+                ? 'Отчётов пока нет. Загрузите утренний отчёт 1С (файл XLSX из почты) — заявки разложатся по лифтам механиков.'
+                : 'Отчётов пока нет: мастер загружает отчёт 1С утром.') + '</p>');
+            return;
+        }
+        var r = data.report;
+        $('#rep-period').text(shortTime(r.period_from) + ' → ' + shortTime(r.period_to) + (r.section ? ' · ' + r.section : ''));
+
+        var items = data.items;
+        var faults = $.grep(items, function (x) { return x.kind === 'fault'; });
+        var open = $.grep(items, function (x) { return !x.finished_at; });
+        var heavy = {};
+        $.each(items, function (_, x) { if (x.stops_30d >= 4) { heavy[x.reg] = true; } });
+        var unmatched = $.grep(items, function (x) { return !x.lift; });
+
+        var html = '';
+        if (data.reports.length > 1) {
+            html += '<label class="fp-chip app-select app-rep-select">' + icon('journal') + '<select id="rep-report" aria-label="Отчёт">';
+            $.each(data.reports, function (_, x) {
+                html += '<option value="' + x.id + '"' + (x.id === r.id ? ' selected' : '') + '>' + esc(shortTime(x.period_from) + ' → ' + shortTime(x.period_to)) + ' · ' + x.faults + ' неиспр.</option>';
+            });
+            html += '</select></label>';
+        }
+        html += '<div class="app-rep-tiles">'
+            + '<div><b>' + faults.length + '</b><span class="lft-label">неисправн.</span></div>'
+            + '<div><b>' + (items.length - faults.length) + '</b><span class="lft-label">ТО и работы</span></div>'
+            + '<div class="bad"><b>' + open.length + '</b><span class="lft-label">не закрыты</span></div>'
+            + '<div class="bad"><b>' + Object.keys(heavy).length + '</b><span class="lft-label">лифтов 4+ ост.</span></div>'
+            + '</div>';
+        if (master && unmatched.length) {
+            html += '<p class="app-rep-warn lft-label">' + icon('warning', 'lft-icon--12') + unmatched.length + ' ' + plural(unmatched.length, 'заявка', 'заявки', 'заявок') + ' без лифта: укажите, чей это лифт, — механик увидит заявку</p>';
+        }
+        html += '<div class="app-types app-journal-tabs" role="tablist">'
+            + '<button type="button" class="fp-chip app-type" data-rep-kind="fault" aria-pressed="' + (repairsKind === 'fault') + '">Неисправности</button>'
+            + '<button type="button" class="fp-chip app-type" data-rep-kind="planned" aria-pressed="' + (repairsKind === 'planned') + '">ТО и работы</button>'
+            + '<button type="button" class="fp-chip app-type" data-rep-kind="all" aria-pressed="' + (repairsKind === 'all') + '">Все</button></div>';
+        var shown = $.grep(items, function (x) { return repairsKind === 'all' || x.kind === repairsKind; });
+        html += shown.length
+            ? '<ul class="app-rep-list">' + $.map(shown, function (x) { return repairCardHtml(x, master); }).join('') + '</ul>'
+            : '<p class="app-empty">' + (master ? 'Нет заявок этого вида.' : 'По вашим лифтам заявок нет.') + '</p>';
+        $('#rep-body').html(html);
+        $('#rep-body .app-select select').each(function () {
+            customSelect(this);
+        });
+    }
+
+    function uploadReport(file) {
+        var $msg = $('#rep-msg').prop('hidden', true);
+        if (!file) {
+            return;
+        }
+        if (file.size > 2 * 1024 * 1024) {
+            $msg.text('Файл слишком большой: отчёт 1С занимает килобайты').prop('hidden', false);
+            return;
+        }
+        var reader = new FileReader();
+        $('.app-rep-upload').attr('aria-busy', 'true');
+        reader.onload = function () {
+            apiPost('/api/repairs/import', { name: file.name, data: String(reader.result) }).then(function (res) {
+                $('.app-rep-upload').removeAttr('aria-busy');
+                go('repairs', { report: res.report_id });
+                setTimeout(function () {
+                    $('#rep-msg').removeClass('app-field-error').addClass('app-ok-msg')
+                        .text('Загружено: ' + res.rows + ' ' + plural(res.rows, 'строка', 'строки', 'строк') + ', неисправностей ' + res.faults
+                            + '. Лифт найден у ' + res.matched + ', без лифта ' + res.unmatched + '.')
+                        .prop('hidden', false);
+                }, 400);
+            }, function (error) {
+                $('.app-rep-upload').removeAttr('aria-busy');
+                $msg.text(errorText(error)).prop('hidden', false);
+            });
+        };
+        reader.onerror = function () {
+            $('.app-rep-upload').removeAttr('aria-busy');
+            $msg.text('Не удалось прочитать файл').prop('hidden', false);
+        };
+        reader.readAsDataURL(file);
+    }
+
+    $(document)
+        .on('change', '#rep-file', function () {
+            uploadReport(this.files[0]);
+            this.value = '';
+        })
+        .on('change', '#rep-report', function () {
+            go('repairs', { report: $(this).val() });
+        })
+        .on('click', '[data-rep-kind]', function () {
+            repairsKind = String($(this).data('rep-kind'));
+            drawRepairs();
+        })
+        .on('click', '[data-repair-lift]', function () {
+            var id = Number($(this).closest('[data-repair]').data('repair'));
+            $(this).prop('disabled', true);
+            apiPost('/api/repairs/' + id + '/lift', { lift_id: Number($(this).data('repair-lift')) }).then(function () {
+                render();
+            }, function (error) {
+                window.alert(errorText(error));
+            });
+        })
+        .on('click', '[data-repair-close]', function () {
+            var id = Number($(this).data('repair-close'));
+            var r = $.grep(repairsData.items, function (x) { return x.id === id; })[0];
+            if (!r) {
+                return;
+            }
+            var notes = $.grep((r.info || '').split(/\s*;\s*/), function (p) { return p && !/^\d{1,3}(\s+[CС]\d{1,2})?(\s+MLM)?$/i.test(p); });
+            var codes = r.codes.join(' ');
+            openSaveSheet(true, {
+                repair_id: r.id,
+                lift: r.lift ? { id: r.lift.id, label: liftLabel(r.lift) + (r.lift.mechanic ? ' · ' + r.lift.mechanic : '') } : null,
+                draft: {
+                    codes: codes,
+                    title: 'Заявка 1С' + (codes ? ': код ' + codes : '') + (notes.length ? (codes ? ', ' : ': ') + notes.join(', ') : ''),
+                    symptoms: $.trim('Заявка ' + shortTime(r.started_at) + (r.floor ? ', эт. ' + r.floor : '') + '. '
+                        + (r.stopped ? 'Лифт стоял. ' : '') + (notes.length ? notes.join('. ') + '.' : '')),
+                    status: 'resolved',
+                    occurred_at: r.started_at.slice(0, 16)
+                }
+            });
+        });
+
     // ---------- Маршрутизация и события ----------
 
     function render() {
@@ -2437,12 +2683,12 @@
         var token = ++renderToken;
         // Отдельного поиска больше нет: поиск по описанию делает ИИ-диагностика
         var page = route.page === 'search' ? 'ai' : route.page;
-        page = { codes: true, journal: true, base: true, ai: true, requests: true, chat: true }[page] ? page : 'codes';
+        page = { codes: true, journal: true, base: true, ai: true, requests: true, repairs: true, chat: true }[page] ? page : 'codes';
         if (page === 'base' && !isMaster()) {
             page = 'journal';
         }
 
-        setActiveNav(page === 'base' ? 'journal' : page);
+        setActiveNav(page === 'base' ? 'journal' : (page === 'repairs' ? 'requests' : page));
         document.title = 'Lift Fault Terminal — база неисправностей лифтов';
         window.scrollTo(0, 0);
 
@@ -2456,6 +2702,8 @@
             renderBase(route.params, token);
         } else if (page === 'ai') {
             renderAi(token);
+        } else if (page === 'repairs') {
+            renderRepairs(route.params, token);
         } else if (page === 'requests') {
             renderRequests(route.params, token);
         } else if (page === 'chat') {

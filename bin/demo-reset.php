@@ -3,7 +3,7 @@
 declare(strict_types=1);
 
 /**
- * Сброс демо-копии: убирает всё, что насохраняли посетители (журнал, чат, заявки, фото),
+ * Сброс демо-копии: убирает всё, что насохраняли посетители (журнал, чат, заявки, отчёты 1С, фото),
  * и загружает вымышленные
  * демо-данные заново (database/demo). База знаний (коды, причины) не трогается.
  *
@@ -31,7 +31,7 @@ if (Env::get('DEMO_MODE') !== '1') {
 }
 
 $pdo = Connection::fromEnv();
-foreach (['attachments', 'messages', 'part_requests', 'journal_entries', 'lifts', 'mechanics', 'rate_limits'] as $table) {
+foreach (['repair_reports', 'attachments', 'messages', 'part_requests', 'journal_entries', 'lifts', 'mechanics', 'rate_limits'] as $table) {
     $pdo->exec("DELETE FROM $table");
 }
 $photos = PhotoStore::fromEnv()->clear();
@@ -42,3 +42,4 @@ $count = static fn (string $t): int => (int) $pdo->query("SELECT COUNT(*) FROM $
 echo 'Демо сброшено: ' . implode(', ', $done) . "\n";
 printf("  механиков %d, лифтов %d, записей журнала %d\n", $count('mechanics'), $count('lifts'), $count('journal_entries'));
 printf("  сообщений %d, заявок %d, удалено фото %d\n", $count('messages'), $count('part_requests'), $photos);
+printf("  заявок на ремонт из 1С %d\n", $count('repair_calls'));

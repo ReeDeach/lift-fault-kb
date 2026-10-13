@@ -12,12 +12,14 @@ use App\Controller\CommsController;
 use App\Controller\DiagnoseController;
 use App\Controller\HealthController;
 use App\Controller\JournalController;
+use App\Controller\RepairsController;
 use App\Controller\SearchController;
 use App\Diagnosis\CandidateFinder;
 use App\Diagnosis\Diagnoser;
 use App\Http\AdminAuth;
 use App\Journal\JournalDrafter;
 use App\Journal\JournalRepository;
+use App\Repairs\RepairsRepository;
 use App\Http\Router;
 use App\Repository\CatalogRepository;
 use App\Repository\FaultCodeRepository;
@@ -121,6 +123,20 @@ return static function (Router $router, ?Services $services = null): void {
         return $comms()->postToRequest($r);
     });
     $router->get('/api/updates', static fn ($r) => $comms()->updates($r));
+
+    // Заявки на ремонт из ежедневного отчёта 1С
+    $repairs = static fn (): RepairsController => new RepairsController(
+        $services->identity(),
+        new RepairsRepository($services->pdo()),
+    );
+    $router->post('/api/repairs/import', static function ($r) use ($services, $repairs) {
+        $services->rateLimiter()->limit($r, 'repairs', 60, 'загрузок отчёта');
+
+        return $repairs()->import($r);
+    });
+    $router->get('/api/repairs', static fn ($r) => $repairs()->index($r));
+    $router->post('/api/repairs/{id}/lift', static fn ($r) => $repairs()->assignLift($r));
+    $router->post('/api/repairs/{id}/journal', static fn ($r) => $repairs()->linkJournal($r));
 
     // Админ-API: каждый обработчик закрыт токеном
     $admin = static fn (): AdminController => new AdminController(new AdminRepository($services->pdo()), $services->searchIndex());
