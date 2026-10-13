@@ -166,7 +166,8 @@
         var html = '<option value="">Все модели</option>';
         $.each(models, function (_, m) {
             var value = String(m.id);
-            html += '<option value="' + esc(value) + '"' + (value === String(selected || '') ? ' selected' : '') + '>'
+            html += '<option value="' + esc(value) + '"' + (value === String(selected || '') ? ' selected' : '')
+                + ' data-maker="' + esc(m.manufacturer.name) + '" data-name="' + esc(m.name) + '" data-count="' + esc(m.codes_count) + '">'
                 + esc(m.manufacturer.name + ' · ' + m.name) + ' (' + m.codes_count + ')</option>';
         });
         return html;
@@ -207,6 +208,78 @@
         });
     }
 
+    // ---------- Свой выпадающий список ----------
+    // Системный <select> на телефоне рисует сама ОС, стилями его не поменять. Поэтому он
+    // остаётся скрытым (на нём держатся обработчики change), а поверх рисуется кнопка
+    // и список в стиле терминала: на широком экране — под полем, на телефоне — шторкой снизу.
+
+    function customSelect(select) {
+        var $select = $(select);
+        if ($select.data('lft-dd')) {
+            return;
+        }
+        var $btn = $('<button type="button" class="app-dd-btn" aria-haspopup="listbox" aria-expanded="false"></button>')
+            .attr('aria-label', $select.attr('aria-label') || 'Выбор');
+        $select.addClass('app-dd-native').attr({ tabindex: '-1', 'aria-hidden': 'true' }).after($btn).data('lft-dd', $btn);
+
+        function update() {
+            var $opt = $select.find('option:selected');
+            $btn.text($opt.data('name') ? $opt.data('maker') + ' · ' + $opt.data('name') : $opt.text());
+        }
+        $select.on('change lft:refresh', update);
+        update();
+    }
+
+    function closeDropdown(focusButton) {
+        var $open = $('.app-dd');
+        if (!$open.length) {
+            return;
+        }
+        var $btn = $open.data('button');
+        $open.remove();
+        $('.app-dd-backdrop').remove();
+        $('body').removeClass('app-dd-lock');
+        if ($btn) {
+            $btn.attr('aria-expanded', 'false');
+            if (focusButton) {
+                $btn.trigger('focus');
+            }
+        }
+    }
+
+    function openDropdown($btn) {
+        closeDropdown(false);
+        var $select = $btn.prev('select');
+        var sheet = window.matchMedia('(max-width: 1023px)').matches;
+        var title = $select.attr('aria-label') || 'Выбор';
+        var html = '<div class="app-dd' + (sheet ? ' app-dd--sheet' : '') + '" role="listbox" aria-label="' + esc(title) + '">';
+        if (sheet) {
+            html += '<div class="lft-window__bar"><span class="lft-label">' + esc(title) + '</span>'
+                + '<button type="button" class="lft-window__x app-dd-close" aria-label="Закрыть">×</button></div>';
+        }
+        $select.find('option').each(function () {
+            var $o = $(this);
+            var on = $o.is(':selected');
+            html += '<button type="button" class="app-dd-opt" role="option" aria-selected="' + on + '" data-value="' + esc($o.val()) + '">';
+            if ($o.data('name')) {
+                html += '<span class="lft-label">' + esc($o.data('maker')) + '</span><span class="app-dd-name">' + esc($o.data('name')) + '</span>'
+                    + '<span class="app-dd-count">' + esc($o.data('count')) + ' ' + plural(Number($o.data('count')), 'код', 'кода', 'кодов') + '</span>';
+            } else {
+                html += '<span class="app-dd-name">' + esc($o.text()) + '</span>';
+            }
+            html += '</button>';
+        });
+        var $dd = $(html + '</div>').data('button', $btn);
+
+        if (sheet) {
+            $('body').addClass('app-dd-lock').append('<div class="app-dd-backdrop"></div>').append($dd);
+        } else {
+            $btn.closest('.app-select').append($dd);
+        }
+        $btn.attr('aria-expanded', 'true');
+        ($dd.find('[aria-selected="true"]')[0] || $dd.find('.app-dd-opt')[0]).focus();
+    }
+
     // ---------- Экран «Коды» ----------
 
     function renderCodes(params, token) {
@@ -232,10 +305,10 @@
 
         loadModels().then(function (models) {
             if (token === renderToken) {
-                $('#model-select').html(modelOptions(models, model));
+                $('#model-select').html(modelOptions(models, model)).trigger('lft:refresh');
             }
         }, function () {
-            $('#model-select').html('<option value="">Модели недоступны</option>');
+            $('#model-select').html('<option value="">Модели недоступны</option>').trigger('lft:refresh');
         });
 
         renderCodeList(model, params.id, token);
@@ -545,7 +618,7 @@
 
         loadModels().then(function (models) {
             if (token === renderToken) {
-                $('#journal-model').html(modelOptions(models, model));
+                $('#journal-model').html(modelOptions(models, model)).trigger('lft:refresh');
             }
         });
 
@@ -671,7 +744,7 @@
 
         loadModels().then(function (models) {
             if (token === renderToken) {
-                $('#search-model').html(modelOptions(models, model));
+                $('#search-model').html(modelOptions(models, model)).trigger('lft:refresh');
             }
         });
 
@@ -787,7 +860,7 @@
 
         loadModels().then(function (models) {
             if (token === renderToken) {
-                $('#ai-model').html(modelOptions(models, currentRoute().params.model || ''));
+                $('#ai-model').html(modelOptions(models, currentRoute().params.model || '')).trigger('lft:refresh');
             }
         });
     }
@@ -937,6 +1010,7 @@
         document.title = 'Lift Fault Terminal — база неисправностей лифтов';
         window.scrollTo(0, 0);
 
+        closeDropdown(false);
         if (page === 'journal') {
             renderJournal(route.params, token);
         } else if (page === 'search') {
@@ -946,9 +1020,64 @@
         } else {
             renderCodes(route.params, token);
         }
+        $view.find('.app-select select').each(function () {
+            customSelect(this);
+        });
     }
 
     $(document)
+        .on('click', '.app-dd-btn', function () {
+            if ($(this).attr('aria-expanded') === 'true') {
+                closeDropdown(true);
+            } else {
+                openDropdown($(this));
+            }
+        })
+        .on('click', '.app-dd-opt', function () {
+            var $btn = $(this).closest('.app-dd').data('button');
+            var value = String($(this).data('value'));
+            closeDropdown(true);
+            var $select = $btn.prev('select');
+            if ($select.val() !== value) {
+                $select.val(value).trigger('change');
+            }
+        })
+        .on('click', '.app-select', function (e) {
+            // Поле обёрнуто в <label>: нажатие на иконку передалось бы скрытому <select>
+            // и открыло бы системный список. Открываем свой.
+            var $btn = $(this).find('.app-dd-btn');
+            if ($btn.length && !$(e.target).closest('.app-dd, .app-dd-btn').length) {
+                e.preventDefault();
+                openDropdown($btn);
+            }
+        })
+        .on('click', '.app-dd-backdrop, .app-dd-close', function () {
+            closeDropdown(true);
+        })
+        .on('click', function (e) {
+            if (!$(e.target).closest('.app-dd, .app-dd-btn').length) {
+                closeDropdown(false);
+            }
+        })
+        .on('keydown', '.app-dd', function (e) {
+            var $opts = $(this).find('.app-dd-opt');
+            var i = $opts.index(document.activeElement);
+            if (e.key === 'Escape') {
+                e.preventDefault();
+                closeDropdown(true);
+            } else if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+                e.preventDefault();
+                $opts.eq(Math.max(0, Math.min($opts.length - 1, i + (e.key === 'ArrowDown' ? 1 : -1)))).trigger('focus');
+            } else if (e.key === 'Tab') {
+                closeDropdown(false);
+            }
+        })
+        .on('keydown', '.app-dd-btn', function (e) {
+            if (e.key === 'ArrowDown') {
+                e.preventDefault();
+                openDropdown($(this));
+            }
+        })
         .on('submit', '#code-form', function (e) {
             e.preventDefault();
             var code = $.trim($('#code-input').val());
