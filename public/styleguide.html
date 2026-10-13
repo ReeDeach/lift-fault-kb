@@ -1,0 +1,116 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Lift Fault Terminal — стили</title>
+<link rel="icon" href="/assets/img/lft-mark.svg" type="image/svg+xml">
+<link rel="stylesheet" href="/assets/css/tokens.css">
+<link rel="stylesheet" href="/assets/css/app.css">
+<style>
+  .sg{padding:40px;display:grid;gap:56px}
+  .sg>section{min-width:0}
+  .sg h2{margin:0 0 20px}
+  .sg-row{display:flex;gap:16px;flex-wrap:wrap;align-items:flex-start}
+  .sg-sws{display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:16px}
+  .sg-sw{display:grid;gap:4px;font-size:13px;color:var(--muted)}
+  .sg-sw i{height:56px;border:1px solid var(--line-faint)}
+  .sg-sw b{font-family:var(--font-mono);font-weight:500;color:var(--ink)}
+  .sg-ics{display:grid;grid-template-columns:repeat(auto-fill,minmax(110px,1fr));gap:12px}
+  .sg-ic{display:grid;justify-items:center;gap:8px;padding:16px 8px;border:1px solid var(--line-faint);font-family:var(--font-mono);font-size:11px;color:var(--muted)}
+  .sg-ic .lft-icon{color:var(--ink)}
+  @media (max-width:1023px){.sg{padding:24px 16px}}
+</style>
+</head>
+<body>
+<div class="fp">
+  <header class="fp-top">
+    <img src="/assets/img/lft-wordmark.svg" alt="Lift Fault Terminal">
+    <nav class="fp-nav"><a class="on" href="#">Стили</a><a href="/api/health">API</a></nav>
+    <div class="fp-sys"><span class="lft-badge lft-badge--ok"><span class="lft-icon lft-icon--ok lft-icon--12"></span>стили</span></div>
+  </header>
+
+  <main class="sg">
+    <section>
+      <h2 class="t-headline" style="color:var(--accent)">Цвет</h2>
+      <div class="sg-sws"><div class="sg-sw"><i style="background:var(--ground)"></i><b>ground</b><span>Фон</span></div><div class="sg-sw"><i style="background:var(--surface)"></i><b>surface</b><span>Панели</span></div><div class="sg-sw"><i style="background:var(--surface-raised)"></i><b>surface-raised</b><span>Шапки окон, поля</span></div><div class="sg-sw"><i style="background:var(--line-faint)"></i><b>line-faint</b><span>Сетка, разделители</span></div><div class="sg-sw"><i style="background:var(--line)"></i><b>line</b><span>Рамки, каркас</span></div><div class="sg-sw"><i style="background:var(--ink)"></i><b>ink</b><span>Текст</span></div><div class="sg-sw"><i style="background:var(--muted)"></i><b>muted</b><span>Вторичный текст</span></div><div class="sg-sw"><i style="background:var(--accent)"></i><b>accent</b><span>Бренд, действие</span></div><div class="sg-sw"><i style="background:var(--signal)"></i><b>signal</b><span>Авария</span></div><div class="sg-sw"><i style="background:var(--ok)"></i><b>ok</b><span>Норма</span></div></div>
+    </section>
+
+    <section>
+      <h2 class="t-headline" style="color:var(--accent)">Типографика</h2>
+      <div style="display:grid;gap:12px">
+        <p class="t-display-xl" style="margin:0;color:var(--accent)">Диагностика</p>
+        <p class="t-headline" style="margin:0">Как искать неисправность?</p>
+        <p class="t-title" style="margin:0;color:var(--accent)">Цепь безопасности</p>
+        <p class="t-body" style="margin:0">Лифт остановился между этажами, двери закрыты.</p>
+        <p class="t-small" style="margin:0;color:var(--muted)">Проверьте цепь безопасности шахтных дверей.</p>
+        <p class="t-label" style="margin:0;color:var(--muted)">System status: stable</p>
+        <p class="t-code" style="margin:0">UL-44 · C0–C9</p>
+        <p class="t-code-xl" style="margin:0;color:var(--accent)">25 · C0 · FF</p>
+      </div>
+    </section>
+
+    <section>
+      <h2 class="t-headline" style="color:var(--accent)">Кнопки</h2>
+      <div class="sg-row">
+        <button class="lft-btn">Найти код</button>
+        <button class="lft-btn lft-btn--ghost">Спросить ИИ</button>
+        <button class="lft-btn lft-btn--signal">Сообщить об аварии</button>
+        <button class="lft-btn" disabled>Нет связи</button>
+      </div>
+    </section>
+
+    <section>
+      <h2 class="t-headline" style="color:var(--accent)">Код неисправности</h2>
+      <div class="sg-row">
+        <div class="lft-code">
+          <span class="lft-label">UL · пульт УКЛ</span>
+          <span class="lft-code__num">50</span>
+          <span class="lft-code__name">Время закрытия дверей</span>
+          <span><span class="lft-badge lft-badge--warn">▲ внимание</span></span>
+        </div>
+        <div class="lft-code lft-code--alarm">
+          <span class="lft-label">UL · охрана шахты</span>
+          <span class="lft-code__num">44</span>
+          <span class="lft-code__name">Аварийный останов</span>
+          <span><span class="lft-badge lft-badge--alarm">■ авария</span></span>
+        </div>
+      </div>
+    </section>
+
+    <section class="sg-row" style="gap:56px">
+      <div style="flex:1;min-width:280px;max-width:460px">
+        <h2 class="t-headline" style="color:var(--accent)">Шаги</h2>
+        <ol class="lft-steps">
+          <li class="lft-step"><span class="lft-step__n">1</span><div><p class="lft-step__t">Прочтите подсказку</p><p class="lft-step__d">Найдите в памяти УЛ код C0–C9 рядом с 44. Не сбрасывайте память до записи.</p></div></li>
+          <li class="lft-step"><span class="lft-step__n">2</span><div><p class="lft-step__t">Двери шахты</p><p class="lft-step__d">Проверьте контакты и замки дверей шахты на всех этажах.</p></div></li>
+          <li class="lft-step"><span class="lft-step__n">3</span><div><p class="lft-step__t">Запись в журнал</p><p class="lft-step__d">Внесите код, подсказку, этаж и принятые меры.</p></div></li>
+        </ol>
+      </div>
+      <div style="flex:1;min-width:280px;max-width:460px">
+        <h2 class="t-headline" style="color:var(--accent)">Окно</h2>
+        <div class="lft-window" role="dialog" aria-label="Ответ ИИ-диагностики">
+          <div class="lft-window__bar"><span class="lft-label">AI · диагностика</span><span class="lft-window__x" aria-hidden="true">×</span></div>
+          <div class="lft-window__body">
+            <p style="margin:0">Вероятно, разомкнут контакт двери шахты: код 44, подсказка C0.</p>
+            <p class="lft-label" style="margin:0">Справочно · работы выполняет допущенный персонал</p>
+            <div class="sg-row" style="gap:8px"><button class="lft-btn">Открыть C0</button><button class="lft-btn lft-btn--ghost">Ещё раз</button></div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section>
+      <h2 class="t-headline" style="color:var(--accent)">Иконки</h2>
+      <div class="sg-ics"><div class="sg-ic"><span class="lft-icon lft-icon--arrow-down"></span><span>arrow-down</span></div><div class="sg-ic"><span class="lft-icon lft-icon--arrow-up"></span><span>arrow-up</span></div><div class="sg-ic"><span class="lft-icon lft-icon--building"></span><span>building</span></div><div class="sg-ic"><span class="lft-icon lft-icon--chain"></span><span>chain</span></div><div class="sg-ic"><span class="lft-icon lft-icon--chip"></span><span>chip</span></div><div class="sg-ic"><span class="lft-icon lft-icon--close"></span><span>close</span></div><div class="sg-ic"><span class="lft-icon lft-icon--code"></span><span>code</span></div><div class="sg-ic"><span class="lft-icon lft-icon--doors"></span><span>doors</span></div><div class="sg-ic"><span class="lft-icon lft-icon--factory"></span><span>factory</span></div><div class="sg-ic"><span class="lft-icon lft-icon--fault"></span><span>fault</span></div><div class="sg-ic"><span class="lft-icon lft-icon--filter"></span><span>filter</span></div><div class="sg-ic"><span class="lft-icon lft-icon--info"></span><span>info</span></div><div class="sg-ic"><span class="lft-icon lft-icon--journal"></span><span>journal</span></div><div class="sg-ic"><span class="lft-icon lft-icon--lift"></span><span>lift</span></div><div class="sg-ic"><span class="lft-icon lft-icon--manual"></span><span>manual</span></div><div class="sg-ic"><span class="lft-icon lft-icon--ok"></span><span>ok</span></div><div class="sg-ic"><span class="lft-icon lft-icon--power"></span><span>power</span></div><div class="sg-ic"><span class="lft-icon lft-icon--search"></span><span>search</span></div><div class="sg-ic"><span class="lft-icon lft-icon--settings"></span><span>settings</span></div><div class="sg-ic"><span class="lft-icon lft-icon--warning"></span><span>warning</span></div></div>
+    </section>
+  </main>
+
+  <footer class="fp-bottom">
+    <span class="lft-label">System status: <span class="ok">stable</span></span>
+    <span class="lft-label">Справочник не заменяет РЭ</span>
+    <span class="lft-label">Keep going.exe</span>
+  </footer>
+</div>
+</body>
+</html>

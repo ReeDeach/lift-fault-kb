@@ -1,134 +1,50 @@
 <!doctype html>
 <html lang="ru">
 <head>
-    <meta charset="utf-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-    <meta name="theme-color" content="#15191e">
-    <title>Неисправности лифтов</title>
-    <meta name="description" content="База знаний по неисправностям лифтов: коды ошибок, поиск по симптомам, ИИ-диагностика с проверкой по базе.">
-    <link rel="stylesheet" href="/assets/app.css?v=9">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Lift Fault Terminal — база неисправностей лифтов</title>
+<link rel="icon" href="/assets/img/lft-mark.svg" type="image/svg+xml">
+<link rel="stylesheet" href="/assets/css/tokens.css">
+<link rel="stylesheet" href="/assets/css/app.css">
 </head>
 <body>
-<svg width="0" height="0" style="position:absolute" aria-hidden="true">
-    <symbol id="i-lift" viewBox="0 0 24 24"><rect x="4" y="2.5" width="16" height="19" rx="2.5"/><path d="M12 2.5v19M8 10.5l-1.6 2.2h3.2zM16 13.5l-1.6-2.2h3.2z"/></symbol>
-    <symbol id="i-pulse" viewBox="0 0 24 24"><path d="M3 12h4l2.5-6 4 12 2.5-6H21"/></symbol>
-    <symbol id="i-hash" viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="14" rx="2.5"/><path d="M8 9v6M12 9v6M16 9v6"/></symbol>
-    <symbol id="i-search" viewBox="0 0 24 24"><circle cx="11" cy="11" r="6.5"/><path d="m20 20-4.2-4.2"/></symbol>
-    <symbol id="i-alert" viewBox="0 0 24 24"><path d="M12 3.5 2.5 20h19z"/><path d="M12 10v4.5M12 17.2v.3"/></symbol>
-</svg>
-
-<header class="top">
-    <div class="wrap top__row">
-        <a class="brand" href="#diagnose">
-            <svg class="brand__icon"><use href="#i-lift"/></svg>
-            <span class="brand__name">Неисправности<span class="brand__tail"> лифтов</span></span>
-        </a>
-        <label class="model">
-            <span class="sr-only">Модель лифта</span>
-            <select id="model">
-                <option value="">Все модели</option>
-            </select>
-        </label>
+<div class="fp">
+  <header class="fp-top">
+    <a href="#/codes" class="app-logo"><img src="/assets/img/lft-wordmark.svg" alt="Lift Fault Terminal"></a>
+    <nav class="fp-nav" aria-label="Разделы">
+      <a href="#/codes" data-page="codes">Коды</a>
+      <a href="#/search" data-page="search">Поиск</a>
+      <a href="#/journal" data-page="journal">Журнал случаев</a>
+      <a href="#/ai" data-page="ai">ИИ-диагностика</a>
+    </nav>
+    <div class="fp-sys">
+      <span class="lft-badge app-status" id="app-status"><span class="lft-icon lft-icon--12"></span>связь…</span>
+      <span class="lft-label" id="app-clock"></span>
     </div>
-</header>
+  </header>
 
-<nav class="tabs" role="tablist" aria-label="Разделы">
-    <div class="wrap tabs__row">
-        <a class="tab" href="#diagnose" role="tab" data-tab="diagnose"><svg><use href="#i-pulse"/></svg><span>Диагностика</span></a>
-        <a class="tab" href="#code" role="tab" data-tab="code"><svg><use href="#i-hash"/></svg><span>Код ошибки</span></a>
-        <a class="tab" href="#search" role="tab" data-tab="search"><svg><use href="#i-search"/></svg><span>Поиск</span></a>
-    </div>
+  <main id="app-view" class="app-view" aria-live="polite">
+    <p class="lft-label app-loading">Загрузка</p>
+  </main>
+
+  <footer class="fp-bottom">
+    <span class="lft-label">System status: <span id="app-system" class="ok">stable</span></span>
+    <span class="lft-label">Справочник не заменяет РЭ производителя</span>
+    <span class="lft-label">Keep going.exe</span>
+  </footer>
+</div>
+
+<nav class="app-tabs" aria-label="Разделы">
+  <a href="#/codes" data-page="codes"><span class="lft-icon lft-icon--code"></span>Коды</a>
+  <a href="#/search" data-page="search"><span class="lft-icon lft-icon--search"></span>Поиск</a>
+  <a href="#/journal" data-page="journal"><span class="lft-icon lft-icon--journal"></span>Журнал</a>
+  <a href="#/ai" data-page="ai"><span class="lft-icon lft-icon--chip"></span>ИИ</a>
 </nav>
 
-<main class="wrap">
-    <!-- Диагностика -->
-    <section class="panel" data-panel="diagnose" hidden>
-        <div class="intro">
-            <h1>Что случилось с лифтом?</h1>
-            <p>Опишите, что видите и слышите. Причины подбираются из базы, ИИ помогает их упорядочить.</p>
-        </div>
-        <form class="card form" id="diagnose-form" novalidate>
-            <label class="field">
-                <span class="field__label">Описание</span>
-                <textarea name="description" rows="4" maxlength="2000" required
-                          placeholder="Лифт стоит на этаже, двери открыты, привод дверей гудит"></textarea>
-            </label>
-            <div class="form__row">
-                <label class="field field--code">
-                    <span class="field__label">Код на индикаторе <span class="field__hint">если есть</span></span>
-                    <input class="input--code" name="code" maxlength="64" autocomplete="off" autocapitalize="characters" autocorrect="off" spellcheck="false" placeholder="44 C6">
-                </label>
-                <button class="btn btn--primary" type="submit">Разобрать</button>
-            </div>
-            <p class="form__error" role="alert" hidden></p>
-        </form>
-        <div class="examples" data-examples="diagnose">
-            <span class="examples__label">Например</span>
-            <button type="button" class="example" data-description="Двери кабины не закрываются после выхода пассажиров, створки дёргаются" data-code="">Двери не закрываются</button>
-            <button type="button" class="example" data-description="Пассажиры застряли у этажа, на индикаторе 44 с подсказкой" data-code="44 C6">Застряли, код 44 C6</button>
-            <button type="button" class="example" data-description="При пуске лебёдка гудит, свет в кабине тускнеет, кабина стоит" data-code="">Лебёдка гудит, кабина стоит</button>
-        </div>
-        <div id="diagnose-result" class="result" aria-live="polite"></div>
-    </section>
+<noscript><p class="lft-label" style="padding:24px">Для работы справочника включите JavaScript.</p></noscript>
 
-    <!-- Код ошибки -->
-    <section class="panel" data-panel="code" hidden>
-        <div class="intro">
-            <h1>Код ошибки</h1>
-            <p>Что значит код, почему возникает и как устранить. Выберите модель, если один код значит разное в разных устройствах.</p>
-        </div>
-        <form class="card form form--inline" id="code-form" novalidate>
-            <label class="field field--grow">
-                <span class="field__label">Код с индикатора</span>
-                <input class="input--code input--big" name="code" maxlength="64" autocomplete="off" autocapitalize="characters" autocorrect="off" spellcheck="false" placeholder="45" required>
-            </label>
-            <button class="btn btn--primary" type="submit">Найти</button>
-            <p class="form__error" role="alert" hidden></p>
-        </form>
-        <div class="examples" data-examples="code">
-            <span class="examples__label">Например</span>
-            <a class="example" href="#code/45">45</a>
-            <a class="example" href="#code/44 C6">44 C6</a>
-            <a class="example" href="#code/E36">E36</a>
-            <a class="example" href="#code/50">50</a>
-        </div>
-        <div id="code-result" class="result" aria-live="polite"></div>
-    </section>
-
-    <!-- Поиск -->
-    <section class="panel" data-panel="search" hidden>
-        <div class="intro">
-            <h1>Поиск по базе</h1>
-            <p>Коды, симптомы, причины, ремонты и случаи из практики. Формы слов не важны.</p>
-        </div>
-        <form class="card form" id="search-form" novalidate>
-            <div class="searchbox">
-                <svg class="searchbox__icon" aria-hidden="true"><use href="#i-search"/></svg>
-                <input name="q" type="search" maxlength="300" autocomplete="off" placeholder="двери не закрываются" required aria-label="Что искать">
-                <button class="btn btn--primary" type="submit">Искать</button>
-            </div>
-            <div class="chips" role="group" aria-label="Разделы">
-                <label class="chip"><input type="checkbox" name="type" value="codes" checked><span>Коды</span></label>
-                <label class="chip"><input type="checkbox" name="type" value="symptoms" checked><span>Симптомы</span></label>
-                <label class="chip"><input type="checkbox" name="type" value="causes" checked><span>Причины</span></label>
-                <label class="chip"><input type="checkbox" name="type" value="fixes" checked><span>Ремонты</span></label>
-                <label class="chip"><input type="checkbox" name="type" value="cases" checked><span>Случаи</span></label>
-            </div>
-            <p class="form__error" role="alert" hidden></p>
-        </form>
-        <div id="search-result" class="result" aria-live="polite"></div>
-    </section>
-
-    <footer class="foot">
-        <svg aria-hidden="true"><use href="#i-alert"/></svg>
-        <p>Справочная система. Не заменяет документацию производителя и правила техники безопасности.
-            Работы на лифтовом оборудовании выполняет только обученный и допущенный персонал.</p>
-    </footer>
-</main>
-
-<script src="https://code.jquery.com/jquery-3.7.1.min.js"
-        integrity="sha384-1H217gwSVyLSIfaLxHbE7dRb3v4mYCKbpQvzx0cegeju1MVsGrX5xXxAvs/HgeFs"
-        crossorigin="anonymous"></script>
-<script src="/assets/app.js?v=9"></script>
+<script src="/assets/vendor/jquery-3.7.1.min.js"></script>
+<script src="/assets/js/app.js"></script>
 </body>
 </html>
