@@ -401,8 +401,21 @@
                 if (token !== renderToken) {
                     return;
                 }
+                // Группа производителя встаёт сразу за его моделями
                 $.each(groups, function (_, g) {
-                    $list.find('.app-acc-list').append(accHtml(g.key, g.vendor, g.name, g.items.length));
+                    var html = accHtml(g.key, g.vendor, g.name, g.items.length);
+                    var last = null;
+                    $.each(models, function (_, m) {
+                        if (m.manufacturer.name === g.vendor) {
+                            last = m.id;
+                        }
+                    });
+                    var $after = last === null ? $() : $list.find('.app-acc[data-acc="m' + last + '"]');
+                    if ($after.length) {
+                        $after.after(html);
+                    } else {
+                        $list.find('.app-acc-list').append(html);
+                    }
                 });
                 $.each(openGroups, function (key, open) {
                     if (open && key.charAt(0) === 'o') {
