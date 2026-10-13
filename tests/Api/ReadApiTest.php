@@ -49,7 +49,7 @@ final class ReadApiTest extends TestCase
         foreach (['mogilevlift', 'gomellift', 'doppler', 'otis'] as $slug) {
             $this->assertArrayHasKey($slug, $bySlug);
         }
-        $this->assertSame('Могилёвлифт', $bySlug['mogilevlift']['name']);
+        $this->assertSame('Могилёвлифтмаш', $bySlug['mogilevlift']['name']);
         $this->assertGreaterThanOrEqual(2, $bySlug['mogilevlift']['models_count']);
         $this->assertSame(Disclaimer::TEXT, $data['disclaimer']);
     }

@@ -161,13 +161,32 @@
         return page(0);
     }
 
+    // Модели сгруппированы по производителю, как в списке кодов. Модели без кодов не
+    // показываем (кроме уже выбранной, чтобы фильтр не сбросился молча).
     function modelOptions(models, selected) {
         var html = '<option value="">Все модели</option>';
+        var makers = [];
+        var byMaker = {};
         $.each(models, function (_, m) {
-            var value = String(m.id);
-            html += '<option value="' + esc(value) + '"' + (value === String(selected || '') ? ' selected' : '')
-                + ' data-maker="' + esc(m.manufacturer.name) + '" data-name="' + esc(m.name) + '" data-count="' + esc(m.codes_count) + '">'
-                + esc(m.manufacturer.name + ' · ' + m.name) + ' (' + m.codes_count + ')</option>';
+            if (m.codes_count === 0 && String(m.id) !== String(selected || '')) {
+                return;
+            }
+            var maker = m.manufacturer.name;
+            if (!byMaker[maker]) {
+                byMaker[maker] = [];
+                makers.push(maker);
+            }
+            byMaker[maker].push(m);
+        });
+        $.each(makers, function (_, maker) {
+            html += '<optgroup label="' + esc(maker) + '">';
+            $.each(byMaker[maker], function (_, m) {
+                var value = String(m.id);
+                html += '<option value="' + esc(value) + '"' + (value === String(selected || '') ? ' selected' : '')
+                    + ' data-maker="' + esc(maker) + '" data-name="' + esc(m.name) + '" data-count="' + esc(m.codes_count) + '">'
+                    + esc(maker + ' · ' + m.name) + ' (' + m.codes_count + ')</option>';
+            });
+            html += '</optgroup>';
         });
         return html;
     }
@@ -256,17 +275,28 @@
             html += '<div class="lft-window__bar"><span class="lft-label">' + esc(title) + '</span>'
                 + '<button type="button" class="lft-window__x app-dd-close" aria-label="Закрыть">×</button></div>';
         }
-        $select.find('option').each(function () {
-            var $o = $(this);
-            var on = $o.is(':selected');
-            html += '<button type="button" class="app-dd-opt" role="option" aria-selected="' + on + '" data-value="' + esc($o.val()) + '">';
+        function optionHtml($o, grouped) {
+            var out = '<button type="button" class="app-dd-opt" role="option" aria-selected="' + $o.is(':selected') + '" data-value="' + esc($o.val()) + '">';
             if ($o.data('name')) {
-                html += '<span class="lft-label">' + esc($o.data('maker')) + '</span><span class="app-dd-name">' + esc($o.data('name')) + '</span>'
+                // В группе производитель уже в заголовке
+                out += (grouped ? '' : '<span class="lft-label">' + esc($o.data('maker')) + '</span>')
+                    + '<span class="app-dd-name">' + esc($o.data('name')) + '</span>'
                     + '<span class="app-dd-count">' + esc($o.data('count')) + ' ' + plural(Number($o.data('count')), 'код', 'кода', 'кодов') + '</span>';
             } else {
-                html += '<span class="app-dd-name">' + esc($o.text()) + '</span>';
+                out += '<span class="app-dd-name">' + esc($o.text()) + '</span>';
             }
-            html += '</button>';
+            return out + '</button>';
+        }
+        $select.children().each(function () {
+            var $c = $(this);
+            if ($c.is('optgroup')) {
+                html += '<div class="app-dd-group lft-label" role="presentation">' + esc($c.attr('label')) + '</div>';
+                $c.children('option').each(function () {
+                    html += optionHtml($(this), true);
+                });
+            } else {
+                html += optionHtml($c, false);
+            }
         });
         var $dd = $(html + '</div>').data('button', $btn);
 
@@ -292,7 +322,7 @@
             + 'placeholder="Код с пульта: 45, 44 C6, E36" aria-label="Код неисправности" maxlength="64" autocapitalize="characters" autocorrect="off" spellcheck="false"></label>'
             + '<label class="fp-chip app-select">' + icon('factory')
             + '<select name="model" id="model-select" aria-label="Модель лифта"><option value="">Загрузка моделей…</option></select></label>'
-            + '<button class="lft-btn" type="submit">Найти код</button>'
+            + '<button class="lft-btn app-find" type="submit" aria-label="Найти код">' + icon('search') + '<span>Найти код</span></button>'
             + '<p class="app-field-error lft-label" id="code-error" hidden></p>'
             + '</form>'
             + '<div class="fp-cols app-cols">'
@@ -321,13 +351,13 @@
         }
     }
 
-    // Строки кодов с подзаголовками устройств (УЛ, ПЧ)
-    function codeRowsHtml(items, model, activeId) {
+    // Строки кодов с подзаголовками устройств (УЛ, ПЧ); labelOf — своя подпись устройства
+    function codeRowsHtml(items, model, activeId, labelOf) {
         var html = '';
         var group = null;
         $.each(items, function (_, item) {
             var on = String(item.id) === String(activeId || '');
-            var owner = ownerLabel(item.owner);
+            var owner = (labelOf || ownerLabel)(item.owner);
             if (owner !== group) {
                 group = owner;
                 html += '<li class="app-group lft-label">' + esc(owner) + '</li>';
@@ -376,115 +406,110 @@
         });
     }
 
-    // ---------- Список кодов по моделям: модель раскрывается по нажатию ----------
+    // ---------- Список кодов по производителям: вкладка раскрывается по нажатию ----------
     // Коды принадлежат устройствам (УЛ, ПЧ), а устройства стоят на моделях. Без выбранной
-    // модели слева — модели лифтов, внутри — их коды по устройствам. Устройства, не привязанные
-    // ни к одной модели (другие исполнения УЛ), — отдельными группами по производителю.
+    // модели слева — производители, внутри — их коды по устройствам. У устройства, которое
+    // стоит на модели, в подзаголовке указана модель; исполнения без привязки идут следом.
 
-    var groupCache = {};
+    var makersCache = null;
     var openGroups = {};
+
+    function makerGroups() {
+        if (makersCache) {
+            return makersCache;
+        }
+        makersCache = $.when(loadModels(), loadAllCodes({})).then(function (models, codes) {
+            var groups = [];
+            var byMaker = {};
+            var modelMaker = {};
+            var ctrlModels = {};
+
+            function group(maker) {
+                if (!byMaker[maker]) {
+                    byMaker[maker] = { key: 'g' + groups.length, maker: maker, models: [], extra: false, items: [] };
+                    groups.push(byMaker[maker]);
+                }
+                return byMaker[maker];
+            }
+
+            $.each(models, function (_, m) {
+                modelMaker[m.id] = m.manufacturer.name;
+                if (m.codes_count > 0) {
+                    group(m.manufacturer.name).models.push(m.name);
+                }
+                $.each(m.controllers, function (_, c) {
+                    (ctrlModels[c.id] = ctrlModels[c.id] || []).push(m);
+                });
+            });
+
+            var order = {};
+            $.each(codes, function (i, item) {
+                var o = item.owner;
+                var linked = o.type === 'model' || !!ctrlModels[o.id];
+                var maker = o.type === 'model' ? modelMaker[o.id]
+                    : linked ? ctrlModels[o.id][0].manufacturer.name
+                        : (o.vendor || 'Другие устройства');
+                var g = group(maker);
+                var ownerKey = o.type + o.id;
+                if (!(ownerKey in order)) {
+                    order[ownerKey] = (linked ? (o.kind === 'drive' ? 1 : 0) : 2) * 100000 + i;
+                }
+                g.extra = g.extra || !linked;
+                g.items.push({ item: item, rank: order[ownerKey], pos: i });
+            });
+
+            $.each(groups, function (_, g) {
+                // Коды одного устройства подряд: УЛ модели, её ПЧ, потом другие исполнения
+                g.items.sort(function (a, b) { return a.rank - b.rank || a.pos - b.pos; });
+                g.items = $.map(g.items, function (x) { return x.item; });
+                g.note = g.models.join(', ') + (g.extra ? (g.models.length ? ' + другие исполнения' : 'Устройства без модели') : '');
+            });
+            return {
+                groups: $.grep(groups, function (g) { return g.items.length > 0; }),
+                labelOf: function (owner) {
+                    var on = owner.type === 'controller' && ctrlModels[owner.id];
+                    return ownerLabel(owner) + (on ? ' — на ' + $.map(on, function (m) { return m.name; }).join(', ') : '');
+                }
+            };
+        });
+        makersCache.fail(function () {
+            makersCache = null;
+        });
+        return makersCache;
+    }
 
     function renderModelGroups(activeId, token) {
         var $list = $('#code-list');
-        loadModels().then(function (models) {
+        if (!$list.find('.app-acc-list').length) {
+            $list.html('<span class="lft-label app-list-head">Загрузка…</span>');
+        }
+        makerGroups().then(function (data) {
             if (token !== renderToken) {
                 return;
             }
-            // Модели без кодов в списке не показываем
-            models = $.grep(models, function (m) { return m.codes_count > 0; });
-            var html = '<span class="lft-label app-list-head">Модели · ' + models.length + '</span><div class="app-acc-list">';
-            $.each(models, function (_, m) {
-                html += accHtml('m' + m.id, m.manufacturer.name, m.name, m.codes_count);
+            var html = '<span class="lft-label app-list-head">Производители · ' + data.groups.length + '</span><div class="app-acc-list">';
+            $.each(data.groups, function (_, g) {
+                html += accHtml(g.key, g.note, g.maker, g.items.length);
             });
             $list.html(html + '</div>');
-            otherGroups().then(function (groups) {
-                if (token !== renderToken) {
-                    return;
-                }
-                $.each(groups, function (_, g) {
-                    $list.find('.app-acc-list').append(accHtml(g.key, g.vendor, g.name, g.items.length));
-                });
-                $.each(openGroups, function (key, open) {
-                    if (open && key.charAt(0) === 'o') {
-                        openGroup(key, activeId, false);
-                    }
-                });
-            });
             $.each(openGroups, function (key, open) {
-                if (open && key.charAt(0) === 'm') {
+                if (open) {
                     openGroup(key, activeId, false);
                 }
             });
         }, function (error) {
-            $list.html('<div class="app-pad">' + errorWindow(error, 'Модели') + '</div>');
+            if (token === renderToken) {
+                $list.html('<div class="app-pad">' + errorWindow(error, 'Список кодов') + '</div>');
+            }
         });
     }
 
-    function accHtml(key, maker, name, count) {
+    function accHtml(key, note, name, count) {
         return '<div class="app-acc" data-acc="' + key + '">'
             + '<button type="button" class="app-acc-head" aria-expanded="false" aria-controls="acc-' + key + '">'
-            + '<span class="app-acc-title"><span class="lft-label">' + esc(maker) + '</span><span class="app-acc-name">' + esc(name) + '</span></span>'
-            + (count === null ? '' : '<span class="app-acc-count">' + count + ' ' + plural(count, 'код', 'кода', 'кодов') + '</span>')
+            + '<span class="app-acc-title"><span class="lft-label">' + esc(note) + '</span><span class="app-acc-name">' + esc(name) + '</span></span>'
+            + '<span class="app-acc-count">' + count + ' ' + plural(count, 'код', 'кода', 'кодов') + '</span>'
             + '</button><ul class="fp-list app-acc-body" id="acc-' + key + '" hidden></ul></div>';
-    }
-
-    // Устройства без модели, сгруппированные по производителю: «Могилёвлифтмаш · УЛ, другие исполнения»
-    var otherCache = null;
-
-    function otherGroups() {
-        if (otherCache) {
-            return otherCache;
-        }
-        otherCache = $.when(loadModels(), loadAllCodes({})).then(function (models, codes) {
-            var used = {};
-            $.each(models, function (_, m) {
-                $.each(m.controllers, function (_, c) { used[c.id] = true; });
-            });
-            var groups = [];
-            var byVendor = {};
-            $.each(codes, function (_, item) {
-                if (item.owner.type !== 'controller' || used[item.owner.id]) {
-                    return;
-                }
-                var vendor = item.owner.vendor || 'Без производителя';
-                if (!byVendor[vendor]) {
-                    byVendor[vendor] = { key: 'o' + item.owner.id, vendor: vendor, items: [], prefixes: {} };
-                    groups.push(byVendor[vendor]);
-                }
-                byVendor[vendor].items.push(item);
-                byVendor[vendor].prefixes[item.owner.name.split(' ')[0]] = true;
-            });
-            $.each(groups, function (_, g) {
-                var prefixes = Object.keys(g.prefixes);
-                g.name = prefixes.length === 1 ? prefixes[0] + ', другие исполнения' : 'Другие устройства';
-            });
-            return groups;
-        });
-        otherCache.fail(function () {
-            otherCache = null;
-        });
-        return otherCache;
-    }
-
-    // Все коды группы (по страницам), один раз за сессию
-    function groupCodes(key) {
-        if (groupCache[key]) {
-            return groupCache[key];
-        }
-        var request;
-        if (key.charAt(0) === 'o') {
-            request = otherGroups().then(function (groups) {
-                var found = $.grep(groups, function (g) { return g.key === key; });
-                return found.length ? found[0].items : [];
-            });
-        } else {
-            request = loadAllCodes({ model: key.slice(1) });
-        }
-        groupCache[key] = request;
-        request.fail(function () {
-            delete groupCache[key];
-        });
-        return request;
     }
 
     function openGroup(key, activeId, scroll) {
@@ -496,12 +521,10 @@
         openGroups[key] = true;
         $acc.addClass('is-open').find('.app-acc-head').attr('aria-expanded', 'true');
         $body.prop('hidden', false);
-        if (!$body.children().length) {
-            $body.html('<li class="app-group lft-label">Загрузка…</li>');
-        }
-        groupCodes(key).then(function (items) {
+        makerGroups().then(function (data) {
+            var found = $.grep(data.groups, function (g) { return g.key === key; });
             // Ссылки без фильтра модели: иначе список переключится в плоский вид одной модели
-            $body.html(items.length ? codeRowsHtml(items, null, activeId)
+            $body.html(found.length ? codeRowsHtml(found[0].items, null, activeId, data.labelOf)
                 : '<li class="app-group lft-label">Кодов пока нет</li>');
             if (scroll) {
                 var $on = $body.find('li.on');
@@ -517,31 +540,21 @@
         $acc.find('.app-acc-body').prop('hidden', true);
     }
 
-    // Открытый код — раскрыть его модель в списке слева, если она ещё свёрнута
+    // Открытый код — раскрыть его производителя в списке слева, если он ещё свёрнут
     function revealInList(item) {
         if (currentRoute().params.model) {
             return;
         }
-        $.when(loadModels(), otherGroups()).then(function (models, groups) {
-            var key = null;
-            $.each(groups, function (_, g) {
-                if ($.grep(g.items, function (i) { return i.owner.id === item.owner.id; }).length) {
-                    key = g.key;
-                }
-            });
-            $.each(models, function (_, m) {
-                var owns = item.owner.type === 'model'
-                    ? m.id === item.owner.id
-                    : $.grep(m.controllers, function (c) { return c.id === item.owner.id; }).length > 0;
-                if (owns) {
-                    key = 'm' + m.id;
+        makerGroups().then(function (data) {
+            $.each(data.groups, function (_, g) {
+                if ($.grep(g.items, function (i) { return i.id === item.id; }).length) {
+                    if (!openGroups[g.key]) {
+                        openGroup(g.key, item.id, true);
+                    }
                     return false;
                 }
                 return true;
             });
-            if (key && !openGroups[key]) {
-                openGroup(key, item.id, true);
-            }
         });
     }
 

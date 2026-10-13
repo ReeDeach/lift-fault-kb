@@ -46,7 +46,7 @@ final class SchemaTest extends TestCase
             ->query('SELECT slug, name FROM manufacturers')
             ->fetchAll(PDO::FETCH_KEY_PAIR);
 
-        $this->assertSame('Могилёвлифт', $names['mogilevlift'] ?? null);
+        $this->assertSame('Могилёвлифтмаш', $names['mogilevlift'] ?? null);
         $this->assertArrayHasKey('gomellift', $names);
         $this->assertArrayHasKey('doppler', $names);
         $this->assertArrayHasKey('otis', $names);
