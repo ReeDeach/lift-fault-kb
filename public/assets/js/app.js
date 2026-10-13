@@ -2730,8 +2730,8 @@
 
     function drawThemeButton() {
         var light = theme() === 'light';
-        $('#app-theme').html('<span aria-hidden="true">' + (light ? '◐' : '◑') + '</span><span class="app-theme-text">' + (light ? 'тёмная' : 'светлая') + '</span>')
-            .attr('aria-label', light ? 'Включить тёмную тему' : 'Включить светлую тему');
+        var label = light ? 'Включить тёмную тему' : 'Включить светлую тему';
+        $('#app-theme').html(icon(light ? 'moon' : 'sun', 'lft-icon--12')).attr({ 'aria-label': label, title: label });
     }
 
     $(document).on('click', '#app-theme', function () {

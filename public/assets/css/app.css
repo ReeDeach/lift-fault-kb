@@ -63,6 +63,8 @@ body{background:var(--ground);color:var(--ink);font-family:var(--font-sans);marg
 .lft-icon--box{-webkit-mask-image:url(../icons/box.svg);mask-image:url(../icons/box.svg)}
 .lft-icon--camera{-webkit-mask-image:url(../icons/camera.svg);mask-image:url(../icons/camera.svg)}
 .lft-icon--chat{-webkit-mask-image:url(../icons/chat.svg);mask-image:url(../icons/chat.svg)}
+.lft-icon--moon{-webkit-mask-image:url(../icons/moon.svg);mask-image:url(../icons/moon.svg)}
+.lft-icon--sun{-webkit-mask-image:url(../icons/sun.svg);mask-image:url(../icons/sun.svg)}
 
 /* Каркас экранов: шапка, поиск, колонки, строка статуса (fp-…) */
 
@@ -787,9 +789,10 @@ a.app-type{display:inline-flex;align-items:center;text-decoration:none}
 img.app-logo-light,.app-logo img.app-logo-light{display:none}
 :root[data-theme="light"] img.app-logo-dark,:root[data-theme="light"] .app-logo img.app-logo-dark{display:none}
 :root[data-theme="light"] img.app-logo-light,:root[data-theme="light"] .app-logo img.app-logo-light{display:block}
-.app-theme{display:inline-flex;gap:6px;align-items:center;background:transparent;color:var(--muted);cursor:pointer}
-.app-theme:hover,.app-theme:focus-visible{color:var(--accent)}
-@media (max-width:1023px){.app-theme-text{display:none}.app-theme{padding:2px 8px}}
+/* Переключатель темы: квадратный значок той же высоты, что и бейдж с именем */
+.app-theme{display:inline-flex;align-items:center;justify-content:center;align-self:stretch;min-width:24px;padding:2px 5px;background:transparent;color:var(--accent);border-color:var(--line);cursor:pointer}
+.app-theme:hover,.app-theme:focus-visible{background:var(--surface-raised)}
+.app-user+.app-theme{margin-left:-10px}
 /* Светлая тема: без «экранного» свечения, тени мягче */
 :root[data-theme="light"] .app-acc.is-open .app-acc-head,:root[data-theme="light"] .app-msg.is-mine .app-msg-bubble{background:var(--surface-raised)}
 :root[data-theme="light"] .lft-window,:root[data-theme="light"] .app-req,:root[data-theme="light"] .app-req-card{box-shadow:0 1px 2px var(--shadow)}
