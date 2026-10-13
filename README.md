@@ -340,13 +340,17 @@ docker logs lift-demo-tunnel 2>&1 | grep trycloudflare.com
 После показа: `docker rm -f lift-demo-tunnel` закрывает ссылку, `bin/demo-reset.php` возвращает демо-данные
 (журнал, чат, заявки) и удаляет загруженные фото.
 
-У части провайдеров (например, МТС в Беларуси) домен `trycloudflare.com` заблокирован. Тогда демо
-можно открыть через Tailscale Funnel: наружу выходит только демо, рабочая копия остаётся в сети Tailscale.
-Funnel один раз разрешается в админке Tailscale.
+У части провайдеров (например, МТС в Беларуси) домен `trycloudflare.com` заблокирован. Тогда
+постоянная ссылка — бесплатный статический домен ngrok (`*.ngrok-free.dev`). Токен и домен из
+кабинета dashboard.ngrok.com записываются в `.env.demo` (`NGROK_AUTHTOKEN`, `NGROK_DOMAIN`),
+туннель — отдельный контейнер демо, перезапускается вместе с Docker:
 
 ```bash
-tailscale funnel --bg --https=8443 http://127.0.0.1:8081
+docker compose -f docker-compose.demo.yml --env-file .env.demo --profile tunnel up -d ngrok
 ```
+
+При первом заходе ngrok показывает гостю страницу-предупреждение: нужно нажать «Visit Site».
+Закрыть ссылку: `docker compose -f docker-compose.demo.yml --env-file .env.demo --profile tunnel stop ngrok`.
 
 ## Интерфейс
 

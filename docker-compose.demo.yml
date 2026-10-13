@@ -63,6 +63,19 @@ services:
     volumes:
       - demo-manticore:/var/lib/manticore
 
+  # Постоянная ссылка для показа через ngrok (бесплатный статический домен *.ngrok-free.app).
+  # Запускается отдельно: docker compose -f docker-compose.demo.yml --env-file .env.demo --profile tunnel up -d ngrok
+  # NGROK_AUTHTOKEN и NGROK_DOMAIN — в .env.demo (из кабинета dashboard.ngrok.com).
+  ngrok:
+    image: ngrok/ngrok:latest
+    profiles: ["tunnel"]
+    restart: unless-stopped
+    command: ["http", "nginx:80", "--url=${NGROK_DOMAIN:-}", "--log=stdout"]
+    environment:
+      NGROK_AUTHTOKEN: ${NGROK_AUTHTOKEN:-}
+    depends_on:
+      - nginx
+
 volumes:
   demo-mysql:
   demo-manticore:
