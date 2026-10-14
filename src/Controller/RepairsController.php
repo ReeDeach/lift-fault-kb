@@ -26,6 +26,7 @@ use DateTimeZone;
  *                                       механику scope=all — весь участок (свои помечены mine)
  *   POST /api/repairs/{id}/lift         {lift_id, as} — указать лифт (мастер — любой, механик — свой), номер из 1С запоминается
  *   POST /api/repairs/{id}/journal      {entry_id, as} — заявка закрыта записью в журнал
+ *   POST /api/repairs/{id}/accept       «Принял» (повторно — отмена): механик берёт заявку в работу
  */
 final class RepairsController
 {
@@ -154,6 +155,18 @@ final class RepairsController
         $this->repairs->assignLift($who, $this->asMaster($who, $request->body['as'] ?? null), $this->id($request), $lift);
 
         return new Response(204);
+    }
+
+    public function accept(Request $request): Response
+    {
+        $who = $this->auth->require($request);
+        $now = new DateTimeImmutable('now', new DateTimeZone(Env::get('APP_TIMEZONE', 'Europe/Minsk')));
+        $result = $this->repairs->accept($who, $this->id($request), $now);
+        if ($result['accepted']) {
+            $this->notifier?->repairAccepted($who, $result);
+        }
+
+        return Response::json(['accepted' => $result['accepted']]);
     }
 
     public function linkJournal(Request $request): Response

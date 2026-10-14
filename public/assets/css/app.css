@@ -927,3 +927,11 @@ img.app-logo-light,.app-logo img.app-logo-light{display:none}
 .app-access-list li span{display:grid;gap:2px;min-width:0;overflow-wrap:anywhere}
 .app-access-list small{color:var(--muted);font-size:13px}
 .app-access-list .lft-btn{padding:6px 12px;font-size:12px;flex:none}
+/* Лайк под сообщением чата */
+.app-like{justify-self:start;width:auto;display:inline-flex;align-items:center;gap:4px;margin-top:6px;padding:2px 8px;border:1px solid var(--line-faint);background:transparent;color:var(--muted);font:500 12px/18px var(--font-mono);cursor:pointer;align-self:flex-start}
+.app-like span{color:var(--ink)}
+.app-like[aria-pressed="true"]{border-color:var(--accent);color:var(--accent)}
+.app-like[aria-pressed="true"] span{color:var(--accent)}
+/* «Принял» на заявке */
+.app-rep-accepted{display:flex;align-items:center;gap:6px;margin:0;color:var(--accent)}
+.app-rep-accept{justify-self:start}

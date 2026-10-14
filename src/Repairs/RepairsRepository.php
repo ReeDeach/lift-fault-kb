@@ -190,9 +190,10 @@ final class RepairsRepository
         }
         $stmt = $this->pdo->prepare(
             'SELECT c.*, l.address AS lift_address, l.object_name, l.lift_no, l.entrance, COALESCE(l.mechanic_id, c.mechanic_id) AS owner_id, m.name AS mechanic_name '
-            . ', j.author_id AS closer_id, j.status AS closed_status, j.occurred_at AS closed_at, cm.name AS closer_name '
+            . ', j.author_id AS closer_id, j.status AS closed_status, j.occurred_at AS closed_at, cm.name AS closer_name, ac.name AS accepted_name '
             . 'FROM repair_calls c LEFT JOIN lifts l ON l.id = c.lift_id LEFT JOIN mechanics m ON m.id = COALESCE(l.mechanic_id, c.mechanic_id) '
             . 'LEFT JOIN journal_entries j ON j.id = c.journal_entry_id LEFT JOIN mechanics cm ON cm.id = j.author_id '
+            . 'LEFT JOIN mechanics ac ON ac.id = c.accepted_by '
             . "WHERE $where ORDER BY (c.finished_at IS NULL) DESC, c.started_at DESC"
         );
         $stmt->execute($params);
@@ -200,7 +201,9 @@ final class RepairsRepository
 
         $index = $this->liftIndex();
 
-        return array_map(function (array $r) use ($index, $me): array {
+        $login = $who->login;
+
+        return array_map(function (array $r) use ($index, $me, $login): array {
             $mine = $me === null || ($r['owner_id'] !== null && (int) $r['owner_id'] === $me);
             $item = [
                 'id' => (int) $r['id'],
@@ -223,6 +226,12 @@ final class RepairsRepository
                 'closed_status' => $r['closed_status'],
                 // Когда сделана работа по записи журнала (время из записи, местное)
                 'closed_at' => $r['closed_at'] === null ? null : self::iso($r['closed_at']),
+                // Кто принял заявку в работу
+                'accepted' => $r['accepted_at'] === null ? null : [
+                    'name' => $r['accepted_name'] ?? 'Механик',
+                    'at' => self::iso($r['accepted_at']),
+                    'mine' => $r['accepted_login'] === $login,
+                ],
                 'lift' => $r['lift_id'] === null ? null : [
                     'id' => (int) $r['lift_id'],
                     'address' => $r['lift_address'],
@@ -342,6 +351,47 @@ final class RepairsRepository
             'status' => $entry['status'],
             'title' => $entry['title'],
         ];
+    }
+
+    /**
+     * «Принял»: механик берёт заявку в работу, все видят кто. Повторное нажатие тем же — отмена.
+     * Заявку, которую уже принял другой, не перехватить; закрытую «устранено» — не принять.
+     *
+     * @return array{accepted: bool, owner_id: int|null, address: string, reg: string|null}
+     */
+    public function accept(Identity $who, int $callId, DateTimeImmutable $now): array
+    {
+        $me = $who->mechanicId() ?? throw new HttpException(403, 'Заявку принимает механик: войдите как механик');
+        $stmt = $this->pdo->prepare(
+            'SELECT c.lift_reg, c.address, c.accepted_login, ac.name AS accepted_name, pj.status AS closed_status, '
+            . 'COALESCE(l.mechanic_id, c.mechanic_id) AS owner_id FROM repair_calls c LEFT JOIN lifts l ON l.id = c.lift_id '
+            . 'LEFT JOIN mechanics ac ON ac.id = c.accepted_by LEFT JOIN journal_entries pj ON pj.id = c.journal_entry_id WHERE c.id = ?'
+        );
+        $stmt->execute([$callId]);
+        $call = $stmt->fetch(PDO::FETCH_ASSOC);
+        if ($call === false) {
+            throw new HttpException(404, 'Заявка не найдена');
+        }
+        if ($call['closed_status'] === 'resolved') {
+            throw new HttpException(409, 'Заявка уже закрыта');
+        }
+        $info = [
+            'owner_id' => $call['owner_id'] === null ? null : (int) $call['owner_id'],
+            'address' => $call['address'],
+            'reg' => $call['lift_reg'],
+        ];
+        if ($call['accepted_login'] === $who->login) {
+            $this->pdo->prepare('UPDATE repair_calls SET accepted_login = NULL, accepted_by = NULL, accepted_at = NULL WHERE id = ?')->execute([$callId]);
+
+            return ['accepted' => false] + $info;
+        }
+        if ($call['accepted_login'] !== null) {
+            throw new HttpException(409, 'Заявку уже принял ' . ($call['accepted_name'] ?? 'другой механик'));
+        }
+        $this->pdo->prepare('UPDATE repair_calls SET accepted_login = ?, accepted_by = ?, accepted_at = ? WHERE id = ?')
+            ->execute([$who->login, $me, $now->format('Y-m-d H:i:s'), $callId]);
+
+        return ['accepted' => true] + $info;
     }
 
     /**

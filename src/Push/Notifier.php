@@ -195,6 +195,29 @@ final class Notifier
     ];
 
     /**
+     * Механик принял заявку в работу — мастеру и механику лифта (если принял не он).
+     *
+     * @param array{owner_id: int|null, address: string, reg: ?string} $call
+     */
+    public function repairAccepted(Identity $who, array $call): void
+    {
+        if (!$this->enabled()) {
+            return;
+        }
+        $name = $who->mechanic['name'] ?? 'Механик';
+        $notification = [
+            'title' => 'Заявку принял ' . $name,
+            'body' => self::cut($call['address'] . ($call['reg'] ? ' · № ' . $call['reg'] : '')),
+            'url' => '#/repairs',
+            'tag' => 'repair-accepted',
+        ];
+        $this->push($this->repo()->forMaster($who->login, 'repairs'), $notification);
+        if ($call['owner_id'] !== null && $call['owner_id'] !== $who->mechanicId()) {
+            $this->push($this->repo()->forMechanic($call['owner_id'], 'repairs', $who->login), $notification);
+        }
+    }
+
+    /**
      * Механик закрыл заявку на ремонт — мастеру, с итогом из записи журнала.
      *
      * @param array{address: string, reg: ?string, status: string, title: string} $call

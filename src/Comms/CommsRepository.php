@@ -336,6 +336,8 @@ final class CommsRepository
             }
         }
 
+        $likes = $this->likes($who, array_map(static fn (array $r): int => (int) $r['id'], $rows));
+
         return array_map(static fn (array $r): array => [
             'id' => (int) $r['id'],
             'at' => self::iso($r['created_at']),
@@ -346,7 +348,78 @@ final class CommsRepository
             'body' => $r['body'],
             'status' => $r['status'],
             'photos' => $photos[(int) $r['id']] ?? [],
+            'likes' => $likes[(int) $r['id']] ?? ['count' => 0, 'liked' => false, 'names' => []],
         ], $rows);
+    }
+
+    // ---------- Лайки ----------
+
+    /**
+     * Лайк сообщению общего чата: поставить или снять (повторное нажатие).
+     *
+     * @return array{count: int, liked: bool, names: list<string>}
+     */
+    public function toggleLike(Identity $who, bool $asMaster, int $messageId): array
+    {
+        if (!$asMaster && $who->mechanicId() === null) {
+            throw new HttpException(403, 'Войдите как механик или как мастер');
+        }
+        $stmt = $this->pdo->prepare('SELECT 1 FROM messages WHERE id = ? AND request_id IS NULL');
+        $stmt->execute([$messageId]);
+        if ($stmt->fetchColumn() === false) {
+            throw new HttpException(404, 'Сообщение не найдено');
+        }
+        $delete = $this->pdo->prepare('DELETE FROM message_likes WHERE message_id = ? AND login = ?');
+        $delete->execute([$messageId, $who->login]);
+        if ($delete->rowCount() === 0) {
+            $this->pdo->prepare('INSERT INTO message_likes (message_id, login, mechanic_id, as_master) VALUES (?, ?, ?, ?)')
+                ->execute([$messageId, $who->login, $asMaster ? null : $who->mechanicId(), (int) $asMaster]);
+        }
+
+        return $this->likes($who, [$messageId])[$messageId] ?? ['count' => 0, 'liked' => false, 'names' => []];
+    }
+
+    /**
+     * Лайки последних сообщений чата до $lastId — чтобы обновлять их при подгрузке нового.
+     *
+     * @return array<int, array{count: int, liked: bool, names: list<string>}>
+     */
+    public function recentLikes(Identity $who, int $lastId, int $window = 100): array
+    {
+        $stmt = $this->pdo->prepare(
+            'SELECT DISTINCT k.message_id FROM message_likes k JOIN messages m ON m.id = k.message_id '
+            . 'WHERE m.request_id IS NULL AND k.message_id > ? AND k.message_id <= ?'
+        );
+        $stmt->execute([max(0, $lastId - $window), $lastId]);
+
+        return $this->likes($who, array_map('intval', $stmt->fetchAll(PDO::FETCH_COLUMN)));
+    }
+
+    /**
+     * @param list<int> $ids
+     * @return array<int, array{count: int, liked: bool, names: list<string>}>
+     */
+    private function likes(Identity $who, array $ids): array
+    {
+        if ($ids === []) {
+            return [];
+        }
+        $in = implode(',', array_fill(0, count($ids), '?'));
+        $stmt = $this->pdo->prepare(
+            "SELECT k.message_id, k.login, k.as_master, me.name FROM message_likes k LEFT JOIN mechanics me ON me.id = k.mechanic_id "
+            . "WHERE k.message_id IN ($in) ORDER BY k.created_at"
+        );
+        $stmt->execute($ids);
+        $out = [];
+        foreach ($stmt->fetchAll(PDO::FETCH_ASSOC) as $r) {
+            $id = (int) $r['message_id'];
+            $out[$id] ??= ['count' => 0, 'liked' => false, 'names' => []];
+            $out[$id]['count']++;
+            $out[$id]['liked'] = $out[$id]['liked'] || $r['login'] === $who->login;
+            $out[$id]['names'][] = (bool) $r['as_master'] ? 'Мастер' : ($r['name'] ?? 'Механик');
+        }
+
+        return $out;
     }
 
     /**

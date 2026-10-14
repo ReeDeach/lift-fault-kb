@@ -230,6 +230,27 @@ final class RepairsApiTest extends TestCase
         $this->assertSame(409, $this->call(self::MECH_A, 'POST', "/api/repairs/$callId/journal", ['entry_id' => $entryA['item']['id']])[0]);
     }
 
+    public function testAcceptCall(): void
+    {
+        $this->call(self::MASTER, 'POST', '/api/repairs/import', ['data' => $this->report()]);
+        [, $a] = $this->call(self::MECH_A, 'GET', '/api/repairs');
+        $callId = $a['items'][0]['id'];
+        $this->assertNull($a['items'][0]['accepted']);
+
+        // Принял механик B — все видят кто; второй не перехватит; повторное нажатие — отмена
+        $this->assertSame([200, ['accepted' => true]], $this->call(self::MECH_B, 'POST', "/api/repairs/$callId/accept"));
+        [, $a] = $this->call(self::MECH_A, 'GET', '/api/repairs');
+        $this->assertSame("{$this->tag} механик b", $a['items'][0]['accepted']['name']);
+        $this->assertFalse($a['items'][0]['accepted']['mine']);
+        [$status, $error] = $this->call(self::MECH_A, 'POST', "/api/repairs/$callId/accept");
+        $this->assertSame(409, $status);
+        $this->assertStringContainsString('механик b', $error['error']['message']);
+        $this->assertSame(403, $this->call(self::MASTER, 'POST', "/api/repairs/$callId/accept")[0], 'Принимает механик, не мастер');
+        $this->assertSame([200, ['accepted' => false]], $this->call(self::MECH_B, 'POST', "/api/repairs/$callId/accept"));
+        [, $a] = $this->call(self::MECH_A, 'GET', '/api/repairs');
+        $this->assertNull($a['items'][0]['accepted']);
+    }
+
     public function testMasterCreatesCallForMechanic(): void
     {
         [$status, $created] = $this->call(self::MASTER, 'POST', '/api/repairs', [

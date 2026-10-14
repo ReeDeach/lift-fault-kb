@@ -237,6 +237,13 @@ final class PushApiTest extends TestCase
         $this->call(self::MASTER, 'POST', '/api/repairs/import', $report);
         $this->assertSame([], $this->takeSent(), 'Повторная загрузка того же отчёта не будит механика');
 
+        // Механик B принял заявку A — знают A и мастер
+        $callA = (int) $this->pdo->query("SELECT c.id FROM repair_calls c JOIN lifts l ON l.id = c.lift_id WHERE l.address = '{$this->street} 3' AND c.kind = 'fault' LIMIT 1")->fetchColumn();
+        $this->assertSame(200, $this->call(self::MECH_B, 'POST', "/api/repairs/$callA/accept")[0]);
+        $sent = $this->takeSent();
+        $this->assertSame(['a', 'master'], array_keys($sent));
+        $this->assertSame("Заявку принял {$this->tag} механик b", $sent['master']['title']);
+
         // Заявку механика A закрыл механик B — A узнаёт об этом, B себе не пишет
         $lift = (int) $this->pdo->query("SELECT id FROM lifts WHERE address = '{$this->street} 3'")->fetchColumn();
         $callId = (int) $this->pdo->query("SELECT id FROM repair_calls WHERE lift_id = $lift AND kind = 'fault' ORDER BY id DESC LIMIT 1")->fetchColumn();

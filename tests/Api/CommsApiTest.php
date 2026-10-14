@@ -138,6 +138,31 @@ final class CommsApiTest extends TestCase
         $this->assertGreaterThanOrEqual($m['item']['id'], $updates['chat_last_id']);
     }
 
+    public function testChatLikes(): void
+    {
+        [, $post] = $this->call(self::MECH_A, 'POST', '/api/chat', ['body' => 'Кто был на Лесной?']);
+        $id = $post['item']['id'];
+        $this->assertSame(['count' => 0, 'liked' => false, 'names' => []], $post['item']['likes']);
+
+        // Лайк ставит и снимает повторное нажатие; другие видят число и кто поставил
+        [$status, $liked] = $this->call(self::MECH_B, 'POST', "/api/chat/$id/like");
+        $this->assertSame(200, $status);
+        $this->assertSame(['count' => 1, 'liked' => true, 'names' => ["{$this->tag} механик b"]], $liked['likes']);
+        $this->call(self::MASTER, 'POST', "/api/chat/$id/like", ['as' => 'master']);
+        [, $chat] = $this->call(self::MECH_A, 'GET', '/api/chat', query: ['after' => (string) ($id - 1)]);
+        $mine = array_values(array_filter($chat['items'], static fn (array $m): bool => $m['id'] === $id))[0];
+        $this->assertSame([2, false], [$mine['likes']['count'], $mine['likes']['liked']]);
+        $this->assertEqualsCanonicalizing(["{$this->tag} механик b", 'Мастер'], $mine['likes']['names']);
+        // При подгрузке нового — свежие лайки уже показанных сообщений
+        [, $poll] = $this->call(self::MECH_A, 'GET', '/api/chat', query: ['after' => (string) $id]);
+        $this->assertSame(2, $poll['likes'][(string) $id]['count']);
+        [, $unliked] = $this->call(self::MECH_B, 'POST', "/api/chat/$id/like");
+        $this->assertSame(1, $unliked['likes']['count']);
+        $this->assertFalse($unliked['likes']['liked']);
+
+        $this->assertSame(404, $this->call(self::MECH_A, 'POST', '/api/chat/999999999/like')[0]);
+    }
+
     public function testChatRules(): void
     {
         $this->assertSame(401, $this->call(null, 'GET', '/api/chat')[0]);

@@ -21,6 +21,7 @@ use App\Push\Notifier;
  *   GET  /api/files/{token}               фото
  *   GET  /api/chat?after=&before=         общий чат
  *   POST /api/chat                        {body, photos: [id], as}
+ *   POST /api/chat/{id}/like              {as} — поставить или снять лайк
  *   GET  /api/requests?as=master&open=1   заявки на запчасти
  *   POST /api/requests                    {title, quantity, urgent, lift_id, body, photos}
  *   GET  /api/requests/{id}?as=master
@@ -95,7 +96,11 @@ final class CommsController
         $after = $this->optionalId($request, 'after');
         $before = $this->optionalId($request, 'before');
 
-        return Response::json(['items' => $this->comms->chat($who, $after, $before, $after !== null ? 100 : 50)]);
+        $items = $this->comms->chat($who, $after, $before, $after !== null ? 100 : 50);
+        // При подгрузке нового — и свежие лайки уже показанных сообщений
+        $likes = $after !== null ? $this->comms->recentLikes($who, $after) : [];
+
+        return Response::json(['items' => $items, 'likes' => (object) $likes]);
     }
 
     public function postChat(Request $request): Response
@@ -113,6 +118,17 @@ final class CommsController
         $this->notifier?->chat($who, $message);
 
         return Response::json(['item' => $message], 201);
+    }
+
+    public function like(Request $request): Response
+    {
+        $who = $this->auth->require($request);
+        $id = (string) $request->param('id');
+        if (!ctype_digit($id) || $id === '0') {
+            throw new HttpException(404, 'Сообщение не найдено');
+        }
+
+        return Response::json(['likes' => $this->comms->toggleLike($who, $this->asMaster($who, $request->body['as'] ?? null), (int) $id)]);
     }
 
     public function requests(Request $request): Response

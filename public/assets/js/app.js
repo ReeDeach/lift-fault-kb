@@ -1816,9 +1816,24 @@
                 + '<time>' + esc(clock(m.at)) + '</time></span>'
                 + (m.body ? '<p class="app-msg-text">' + esc(m.body) + '</p>' : '')
                 + photosHtml(m.photos)
+                + (inRequest ? '' : likeHtml(m.id, m.likes))
                 + '</div>';
         }
         return html + '</div>';
+    }
+
+    // 👍 под сообщением общего чата: число и кто поставил (в подсказке)
+    function likeHtml(id, likes) {
+        likes = likes || { count: 0, liked: false, names: [] };
+        return '<button type="button" class="app-like" data-like="' + Number(id) + '" aria-pressed="' + !!likes.liked + '"'
+            + ' title="' + esc(likes.names.length ? 'Лайк: ' + likes.names.join(', ') : 'Поставить лайк') + '">👍'
+            + (likes.count ? '<span>' + likes.count + '</span>' : '') + '</button>';
+    }
+
+    function drawLikes(map) {
+        $.each(map || {}, function (id, likes) {
+            $('[data-like="' + Number(id) + '"]').replaceWith(likeHtml(id, likes));
+        });
     }
 
     // Лента сообщений с подписями дней
@@ -2019,6 +2034,9 @@
 
     function pollChat() {
         api('/api/chat', { after: chatState.last }).then(function (data) {
+            if (currentRoute().page === 'chat') {
+                drawLikes(data.likes);
+            }
             if (!data.items.length || currentRoute().page !== 'chat') {
                 return;
             }
@@ -2557,6 +2575,14 @@
                 + icon(pending ? 'journal' : 'ok', 'lft-icon--12')
                 + (pending ? 'В журнале: ' + esc(result.text) : 'Закрыта в журнале') + (r.closed_by ? ' · ' + esc(r.closed_by) : '') + '</a>';
         }
+        if (r.accepted && !done) {
+            html += '<p class="app-rep-accepted lft-label">' + icon('settings', 'lft-icon--12') + 'Принял ' + esc(r.accepted.name) + ' · ' + esc(shortTime(r.accepted.at)) + '</p>';
+        }
+        if (!done && !master && (!r.accepted || r.accepted.mine)) {
+            // «Принял»: видно всем, кто взялся; повторное нажатие своим — отмена
+            html += '<button type="button" class="lft-btn' + (r.accepted ? ' lft-btn--ghost' : '') + ' app-rep-accept" data-repair-accept="' + r.id + '">'
+                + icon(r.accepted ? 'fault' : 'settings', 'lft-icon--12') + (r.accepted ? 'Отменить «Принял»' : 'Принял') + '</button>';
+        }
         if (!done) {
             // Закрыть может любой механик бригады, не только тот, чей лифт
             html += '<button type="button" class="lft-btn lft-btn--ghost app-rep-close" data-repair-close="' + r.id + '" title="Запись в журнал лифта: что было и что сделано">'
@@ -2753,6 +2779,28 @@
         })
         .on('change', '#rep-report', function () {
             go('repairs', { report: $(this).val() });
+        })
+        .on('click', '[data-repair-accept]', function () {
+            var $b = $(this).prop('disabled', true);
+            apiPost('/api/repairs/' + Number($b.data('repair-accept')) + '/accept', {}).then(function () {
+                render();
+            }, function (error) {
+                $b.prop('disabled', false);
+                window.alert(errorText(error));
+                render();
+            });
+        })
+        .on('click', '[data-like]', function () {
+            var $b = $(this).prop('disabled', true);
+            var id = Number($b.data('like'));
+            apiPost('/api/chat/' + id + '/like', { as: asRole() }).then(function (data) {
+                var map = {};
+                map[id] = data.likes;
+                drawLikes(map);
+            }, function (error) {
+                $b.prop('disabled', false);
+                window.alert(errorText(error));
+            });
         })
         .on('click', '[data-rep-done]', function () {
             repairsShowDone = !repairsShowDone;

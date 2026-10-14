@@ -114,6 +114,11 @@ return static function (Router $router, ?Services $services = null): void {
 
         return $comms()->postChat($r);
     });
+    $router->post('/api/chat/{id}/like', static function ($r) use ($services, $comms) {
+        $services->rateLimiter()->limit($r, 'like', 600, 'лайков');
+
+        return $comms()->like($r);
+    });
     $router->get('/api/requests', static fn ($r) => $comms()->requests($r));
     $router->post('/api/requests', static function ($r) use ($services, $comms) {
         $services->rateLimiter()->limit($r, 'message', 300, 'сообщений');
@@ -147,6 +152,7 @@ return static function (Router $router, ?Services $services = null): void {
     });
     $router->post('/api/repairs/{id}/lift', static fn ($r) => $repairs()->assignLift($r));
     $router->post('/api/repairs/{id}/journal', static fn ($r) => $repairs()->linkJournal($r));
+    $router->post('/api/repairs/{id}/accept', static fn ($r) => $repairs()->accept($r));
 
     // Кто может войти из интернета (ngrok): список ведёт мастер
     $access = static fn (): AccessController => new AccessController($services->identity(), $services->pdo());
