@@ -4,18 +4,25 @@ declare(strict_types=1);
 
 use App\Admin\AdminRepository;
 use App\Auth\IdentityResolver;
+use App\Comms\CommsRepository;
+use App\Controller\AccessController;
 use App\Controller\AdminController;
 use App\Controller\CatalogController;
 use App\Controller\CodeController;
+use App\Controller\CommsController;
 use App\Controller\DiagnoseController;
 use App\Controller\HealthController;
 use App\Controller\JournalController;
+use App\Controller\PushController;
+use App\Controller\RepairsController;
 use App\Controller\SearchController;
 use App\Diagnosis\CandidateFinder;
 use App\Diagnosis\Diagnoser;
 use App\Http\AdminAuth;
 use App\Journal\JournalDrafter;
 use App\Journal\JournalRepository;
+use App\Push\PushRepository;
+use App\Repairs\RepairsRepository;
 use App\Http\Router;
 use App\Repository\CatalogRepository;
 use App\Repository\FaultCodeRepository;
@@ -87,6 +94,86 @@ return static function (Router $router, ?Services $services = null): void {
     $router->get('/api/journal', static fn ($r) => $journal()->index($r));
     $router->post('/api/journal', static fn ($r) => $journal()->create($r));
     $router->delete('/api/journal/{id}', static fn ($r) => $journal()->delete($r));
+
+    // Связь в бригаде: общий чат и заявки на запчасти мастеру, с фото
+    $comms = static fn (): CommsController => new CommsController(
+        $services->identity(),
+        new CommsRepository($services->pdo()),
+        $services->photoStore(),
+        $services->notifier(),
+    );
+    $router->post('/api/uploads', static function ($r) use ($services, $comms) {
+        $services->rateLimiter()->limit($r, 'upload', 120, 'фото');
+
+        return $comms()->upload($r);
+    });
+    $router->get('/api/files/{token}', static fn ($r) => $comms()->file($r));
+    $router->get('/api/chat', static fn ($r) => $comms()->chat($r));
+    $router->post('/api/chat', static function ($r) use ($services, $comms) {
+        $services->rateLimiter()->limit($r, 'message', 300, 'сообщений');
+
+        return $comms()->postChat($r);
+    });
+    $router->post('/api/chat/{id}/like', static function ($r) use ($services, $comms) {
+        $services->rateLimiter()->limit($r, 'like', 600, 'лайков');
+
+        return $comms()->like($r);
+    });
+    $router->get('/api/requests', static fn ($r) => $comms()->requests($r));
+    $router->post('/api/requests', static function ($r) use ($services, $comms) {
+        $services->rateLimiter()->limit($r, 'message', 300, 'сообщений');
+
+        return $comms()->createRequest($r);
+    });
+    $router->get('/api/requests/{id}', static fn ($r) => $comms()->showRequest($r));
+    $router->post('/api/requests/{id}/messages', static function ($r) use ($services, $comms) {
+        $services->rateLimiter()->limit($r, 'message', 300, 'сообщений');
+
+        return $comms()->postToRequest($r);
+    });
+    $router->get('/api/updates', static fn ($r) => $comms()->updates($r));
+
+    // Заявки на ремонт из ежедневного отчёта 1С
+    $repairs = static fn (): RepairsController => new RepairsController(
+        $services->identity(),
+        new RepairsRepository($services->pdo()),
+        $services->notifier(),
+    );
+    $router->post('/api/repairs/import', static function ($r) use ($services, $repairs) {
+        $services->rateLimiter()->limit($r, 'repairs', 60, 'загрузок отчёта');
+
+        return $repairs()->import($r);
+    });
+    $router->get('/api/repairs', static fn ($r) => $repairs()->index($r));
+    $router->post('/api/repairs', static function ($r) use ($services, $repairs) {
+        $services->rateLimiter()->limit($r, 'message', 300, 'сообщений');
+
+        return $repairs()->create($r);
+    });
+    $router->post('/api/repairs/{id}/lift', static fn ($r) => $repairs()->assignLift($r));
+    $router->post('/api/repairs/{id}/journal', static fn ($r) => $repairs()->linkJournal($r));
+    $router->post('/api/repairs/{id}/accept', static fn ($r) => $repairs()->accept($r));
+
+    // Кто может войти из интернета (ngrok): список ведёт мастер
+    $access = static fn (): AccessController => new AccessController($services->identity(), $services->pdo());
+    $router->get('/api/access', static fn ($r) => $access()->index($r));
+    $router->post('/api/access', static fn ($r) => $access()->add($r));
+    $router->post('/api/access/remove', static fn ($r) => $access()->remove($r));
+
+    // Push-уведомления: подписка устройства и пробное уведомление
+    $push = static fn (): PushController => new PushController(
+        $services->identity(),
+        new PushRepository($services->pdo()),
+        $services->notifier(),
+    );
+    $router->get('/api/push', static fn ($r) => $push()->show($r));
+    $router->post('/api/push/subscribe', static fn ($r) => $push()->subscribe($r));
+    $router->post('/api/push/unsubscribe', static fn ($r) => $push()->unsubscribe($r));
+    $router->post('/api/push/test', static function ($r) use ($services, $push) {
+        $services->rateLimiter()->limit($r, 'push-test', 30, 'проверок');
+
+        return $push()->test($r);
+    });
 
     // Админ-API: каждый обработчик закрыт токеном
     $admin = static fn (): AdminController => new AdminController(new AdminRepository($services->pdo()), $services->searchIndex());

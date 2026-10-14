@@ -1,0 +1,25 @@
+# Правила ngrok для рабочей копии: вход через Google, приложению — почта вошедшего.
+# Кого пускать дальше, решает само приложение (мастера, привязанные механики, список «Доступ»).
+on_http_request:
+  # Заголовки личности от клиента не принимаются — их ставит только ngrok
+  - actions:
+      - type: remove-headers
+        config:
+          headers:
+            - x-lft-user
+            - tailscale-user-login
+            - x-lft-channel
+  # Файл подтверждения для Android-приложения (TWA) Chrome проверяет без входа: в нём только
+  # название приложения и отпечаток ключа подписи
+  - expressions:
+      - "req.url.path != '/.well-known/assetlinks.json'"
+    actions:
+      - type: oauth
+        config:
+          auth_id: google
+          provider: google
+  - actions:
+      - type: add-headers
+        config:
+          headers:
+            x-lft-user: "${actions.ngrok.oauth.identity.email}"

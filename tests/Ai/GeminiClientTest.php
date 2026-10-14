@@ -109,6 +109,83 @@ final class GeminiClientTest extends TestCase
         @unlink($state);
     }
 
+    public function testOverloadIsRetriedOnSameModelBeforeFallback(): void
+    {
+        $calls = [];
+        $pauses = [];
+        $responses = [['status' => 503, 'body' => '{}'], ['status' => 503, 'body' => '{}'], self::ok('{"a": 1}')];
+        $client = new GeminiClient('k', ['gemini-3.5-flash', 'spare'], 5, function (string $url, array $h, string $body) use (&$calls, &$responses): array {
+            $calls[] = [$url, json_decode($body, true)];
+
+            return array_shift($responses);
+        }, null, 2, 0, function (float $s) use (&$pauses): void {
+            $pauses[] = $s;
+        });
+
+        $this->assertSame('gemini-3.5-flash', $client->generate('s', 'p', [])['model']);
+        $this->assertCount(3, $calls);
+        $this->assertSame([0.8, 1.6], $pauses);
+        $this->assertSame(['thinkingLevel' => 'low'], $calls[0][1]['generationConfig']['thinkingConfig'], 'Gemini 3 — короткое размышление');
+    }
+
+    public function testExhaustedQuotaPausesModelUntilResetAndAllPausedFailsAtOnce(): void
+    {
+        $state = sys_get_temp_dir() . '/gemini-state-' . bin2hex(random_bytes(4)) . '.json';
+        $calls = 0;
+        $quota = ['status' => 429, 'body' => '{"error": {"details": [{"retryDelay": "38093s"}]}}'];
+        $responses = [$quota, ['status' => 0, 'body' => '']];
+        $client = new GeminiClient('k', ['main', 'spare'], 5, function () use (&$calls, &$responses): array {
+            $calls++;
+
+            return array_shift($responses);
+        }, $state, 2);
+
+        try {
+            $client->generate('s', 'p', []);
+            $this->fail('Ожидалось исключение');
+        } catch (AiException) {
+        }
+        $this->assertSame(2, $calls, '429 не повторяется на той же модели');
+        $paused = json_decode((string) file_get_contents($state), true);
+        $this->assertGreaterThan(time() + 38000, $paused['main'], 'Пауза до сброса квоты');
+        $this->assertLessThanOrEqual(time() + 900, $paused['spare']);
+
+        // Следующий запрос не ждёт таймаутов: обе модели на паузе
+        try {
+            $client->generate('s', 'p', []);
+            $this->fail('Ожидалось исключение');
+        } catch (AiException $e) {
+            $this->assertStringContainsString('на паузе', $e->getMessage());
+        }
+        $this->assertSame(2, $calls);
+        @unlink($state);
+    }
+
+    public function testTimeoutIsNotRetriedOnSameModelAndOldModelsGetNoThinkingConfig(): void
+    {
+        $result = $this->client([['status' => 0, 'body' => ''], self::ok('{"a": 1}')])->generate('s', 'p', []);
+
+        $this->assertSame('spare', $result['model']);
+        $this->assertArrayNotHasKey('thinkingConfig', json_decode($this->requests[0]['body'], true)['generationConfig']);
+    }
+
+    public function testBudgetLimitsEachAttempt(): void
+    {
+        $timeouts = [];
+        $client = new GeminiClient('k', ['a', 'b'], 20, function (string $url, array $h, string $b, int $timeout) use (&$timeouts): array {
+            $timeouts[] = $timeout;
+
+            return ['status' => 0, 'body' => ''];
+        }, null, 0, 10);
+
+        try {
+            $client->generate('s', 'p', []);
+            $this->fail('Ожидалось исключение');
+        } catch (AiException) {
+        }
+        $this->assertLessThanOrEqual(10, $timeouts[0], 'Таймаут попытки не больше общего предела');
+    }
+
     public function testBlockedOrNonJsonAnswerThrows(): void
     {
         $blocked = ['status' => 200, 'body' => json_encode(['promptFeedback' => ['blockReason' => 'SAFETY']])];

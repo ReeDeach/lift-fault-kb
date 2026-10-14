@@ -28,6 +28,8 @@ final class IdentityResolver
     public const HEADER = 'tailscale-user-login';
     public const DEMO_USER = 'x-demo-user';
     public const DEMO_MECHANIC = 'x-demo-mechanic';
+    /** Ставит только nginx для входа из интернета (docker/nginx/internet.conf) */
+    public const CHANNEL = 'x-lft-channel';
 
     /**
      * @param list<string> $masterLogins
@@ -71,12 +73,38 @@ final class IdentityResolver
         $stmt = $this->pdo->prepare('SELECT id, name, section FROM mechanics WHERE login = ?');
         $stmt->execute([$login]);
         $row = $stmt->fetch(PDO::FETCH_ASSOC);
+        $isMaster = in_array($login, $this->masterLogins, true);
+
+        // Из интернета (ngrok, вход через Google) пускаем не всех: мастеров, механиков с привязанным
+        // аккаунтом и тех, кого мастер добавил в «Доступ». Пометку ставит только nginx для ngrok.
+        if ($request->header(self::CHANNEL) === 'internet' && !$isMaster && $row === false && !$this->allowed($login)) {
+            throw new HttpException(403, "Нет доступа для $login. Попросите мастера добавить эту почту в «Доступ»");
+        }
 
         return new Identity(
             $login,
-            in_array($login, $this->masterLogins, true),
+            $isMaster,
             $row === false ? null : ['id' => (int) $row['id'], 'name' => $row['name'], 'section' => $row['section']],
         );
+    }
+
+    /**
+     * Почта в списке «Доступ» (мастер добавил человека для входа из интернета).
+     */
+    public function allowed(string $login): bool
+    {
+        $stmt = $this->pdo->prepare('SELECT 1 FROM access_logins WHERE login = ?');
+        $stmt->execute([strtolower(trim($login))]);
+
+        return $stmt->fetchColumn() !== false;
+    }
+
+    /**
+     * @return list<string>
+     */
+    public function masterLogins(): array
+    {
+        return $this->masterLogins;
     }
 
     private function resolveDemo(Request $request): ?Identity
@@ -101,6 +129,8 @@ final class IdentityResolver
     public function require(Request $request): Identity
     {
         return $this->resolve($request)
-            ?? throw new HttpException(401, 'Вход только через Tailscale: откройте сайт по адресу *.ts.net');
+            ?? throw new HttpException(401, $request->header(self::CHANNEL) === 'internet'
+                ? 'Войдите через Google: откройте ссылку на сайт заново'
+                : 'Вход только через Tailscale: откройте сайт по адресу *.ts.net');
     }
 }

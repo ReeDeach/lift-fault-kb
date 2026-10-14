@@ -16,7 +16,8 @@ if (is_file($root . '/.env')) {
 }
 
 $router = new Router();
-(require $root . "/src/routes.php")($router, new \App\Support\Services());
+$services = new \App\Support\Services();
+(require $root . "/src/routes.php")($router, $services);
 
 try {
     $request = Request::fromGlobals();
@@ -26,3 +27,5 @@ try {
 }
 
 $router->dispatch($request)->send();
+// Push-уведомления уходят после ответа: браузер не ждёт служб уведомлений
+$services->flushNotifications();

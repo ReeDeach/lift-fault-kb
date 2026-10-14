@@ -7,12 +7,18 @@ namespace App\Support;
 use App\Ai\GeminiClient;
 use App\Ai\LanguageModel;
 use App\Auth\IdentityResolver;
+use App\Comms\PhotoStore;
 use App\Database\Connection;
+use App\Push\Notifier;
+use App\Push\PushRepository;
+use App\Push\PushSender;
+use App\Push\WebPush;
 use App\Http\HttpException;
 use App\Search\Documents;
 use App\Search\ManticoreIndex;
 use App\Search\SearchIndex;
 use Closure;
+use DateTimeZone;
 use PDO;
 use PDOException;
 
@@ -26,12 +32,16 @@ final class Services
 
     private ?PDO $manticore = null;
 
+    private ?Notifier $notifier = null;
+
     /**
      * @param (Closure(): PDO)|null $pdoFactory
      * @param (Closure(self): ?SearchIndex)|null $searchIndexFactory
      * @param (Closure(): ?LanguageModel)|null $languageModelFactory
      * @param (Closure(PDO): IdentityResolver)|null $identityFactory
      * @param (Closure(PDO): RateLimiter)|null $rateLimiterFactory
+     * @param (Closure(): PhotoStore)|null $photoStoreFactory
+     * @param (Closure(): ?PushSender)|null $pushSenderFactory
      */
     public function __construct(
         private readonly ?Closure $pdoFactory = null,
@@ -40,7 +50,40 @@ final class Services
         private readonly ?Closure $languageModelFactory = null,
         private readonly ?Closure $identityFactory = null,
         private readonly ?Closure $rateLimiterFactory = null,
+        private readonly ?Closure $photoStoreFactory = null,
+        private readonly ?Closure $pushSenderFactory = null,
     ) {
+    }
+
+    /**
+     * Хранилище фото к сообщениям. В тестах — временная папка.
+     */
+    public function photoStore(): PhotoStore
+    {
+        return $this->photoStoreFactory !== null ? ($this->photoStoreFactory)() : PhotoStore::fromEnv();
+    }
+
+    /**
+     * Push-уведомления, один на запрос: копит и отправляет после ответа (flushNotifications).
+     * Без ключей VAPID уведомления выключены. В тестах отправка подменяется.
+     */
+    public function notifier(): Notifier
+    {
+        if ($this->notifier === null) {
+            $sender = $this->pushSenderFactory !== null ? ($this->pushSenderFactory)() : WebPush::fromEnv();
+            $this->notifier = new Notifier(
+                fn (): PushRepository => new PushRepository($this->pdo()),
+                $sender,
+                new DateTimeZone(Env::get('APP_TIMEZONE', 'Europe/Minsk')),
+            );
+        }
+
+        return $this->notifier;
+    }
+
+    public function flushNotifications(): void
+    {
+        $this->notifier?->flush();
     }
 
     /**

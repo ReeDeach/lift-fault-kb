@@ -154,6 +154,19 @@ final class DiagnoserTest extends TestCase
         $this->assertSame('skipped', $result['ai']['status']);
         $this->assertSame([], $result['causes']);
         $this->assertSame([], $calls);
+        $this->assertStringStartsWith('В базе нет подходящих записей', $result['ai']['message']);
+    }
+
+    public function testCodeWithoutCausesIsNotCalledMissing(): void
+    {
+        $candidates = $this->candidates();
+        $candidates['causes'] = [];
+
+        $result = (new Diagnoser(null))->diagnose(self::INPUT, $candidates);
+
+        $this->assertSame('skipped', $result['ai']['status']);
+        $this->assertStringStartsWith('Код 50 есть в базе, но причины к нему ещё не записаны', $result['ai']['message']);
+        $this->assertStringNotContainsString('нет подходящих', $result['ai']['message']);
     }
 
     public function testLongTextsAreCutAndOnlyThreeQuestionsKept(): void

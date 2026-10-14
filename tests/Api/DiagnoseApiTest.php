@@ -192,7 +192,7 @@ final class DiagnoseApiTest extends TestCase
 
     public function testBadInput(): void
     {
-        [$short, $shortData] = $this->post(['description' => 'стоит']);
+        [$short, $shortData] = $this->post(['description' => '!!!']);
         [$unknown, $unknownData] = $this->post(['description' => 'Лифт стоит между этажами', 'floor' => 3]);
         [$codeType] = $this->post(['description' => 'Лифт стоит между этажами', 'code' => 45]);
         [$badCode] = $this->post(['description' => 'Лифт стоит между этажами', 'code' => "45' OR 1"]);
@@ -206,6 +206,15 @@ final class DiagnoseApiTest extends TestCase
         $this->assertSame(400, $badCode);
         $this->assertSame(404, $noModel);
         $this->assertSame([], $this->calls, 'При ошибке во входных данных модель не вызывается');
+    }
+
+    public function testBareCodeIsEnough(): void
+    {
+        [$status, $data] = $this->post(['description' => '45']);
+
+        $this->assertSame(200, $status, json_encode($data, JSON_UNESCAPED_UNICODE));
+        $this->assertSame(['45'], $data['detected_codes']);
+        $this->assertContains('45', array_column($data['codes'], 'code'));
     }
 
     public function testGetIsNotAllowed(): void
