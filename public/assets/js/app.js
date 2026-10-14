@@ -1855,12 +1855,12 @@
         return html + '</div>';
     }
 
-    // 👍 под сообщением общего чата: число и кто поставил (в подсказке)
+    // Сердце под сообщением общего чата: число и кто поставил (в подсказке)
     function likeHtml(id, likes) {
         likes = likes || { count: 0, liked: false, names: [] };
         return '<button type="button" class="app-like" data-like="' + Number(id) + '" aria-pressed="' + !!likes.liked + '"'
-            + ' title="' + esc(likes.names.length ? 'Лайк: ' + likes.names.join(', ') : 'Поставить лайк') + '">👍'
-            + (likes.count ? '<span>' + likes.count + '</span>' : '') + '</button>';
+            + ' title="' + esc(likes.names.length ? 'Нравится: ' + likes.names.join(', ') : 'Нравится') + '" aria-label="Нравится">'
+            + icon(likes.liked ? 'heart' : 'heart-o') + (likes.count ? '<span>' + likes.count + '</span>' : '') + '</button>';
     }
 
     function drawLikes(map) {
