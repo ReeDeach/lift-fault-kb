@@ -139,6 +139,11 @@ return static function (Router $router, ?Services $services = null): void {
         return $repairs()->import($r);
     });
     $router->get('/api/repairs', static fn ($r) => $repairs()->index($r));
+    $router->post('/api/repairs', static function ($r) use ($services, $repairs) {
+        $services->rateLimiter()->limit($r, 'message', 300, 'сообщений');
+
+        return $repairs()->create($r);
+    });
     $router->post('/api/repairs/{id}/lift', static fn ($r) => $repairs()->assignLift($r));
     $router->post('/api/repairs/{id}/journal', static fn ($r) => $repairs()->linkJournal($r));
 

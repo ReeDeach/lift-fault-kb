@@ -222,10 +222,21 @@ final class CommsRepository
     /**
      * Для значков «есть новое» на вкладках: последний id чата и время последнего изменения заявок.
      *
-     * @return array{chat_last_id: int, requests_updated_at: string|null, requests_open: int}
+     * repairs_last_id — последняя заявка на ремонт механику (из 1С или от мастера), у мастера 0.
+     *
+     * @return array{chat_last_id: int, requests_updated_at: string|null, requests_open: int, repairs_last_id: int}
      */
     public function updates(Identity $who, bool $all): array
     {
+        $repairs = 0;
+        if (!$all && $who->mechanicId() !== null) {
+            $stmt = $this->pdo->prepare(
+                'SELECT COALESCE(MAX(c.id), 0) FROM repair_calls c LEFT JOIN lifts l ON l.id = c.lift_id '
+                . 'WHERE COALESCE(l.mechanic_id, c.mechanic_id) = ?'
+            );
+            $stmt->execute([$who->mechanicId()]);
+            $repairs = (int) $stmt->fetchColumn();
+        }
         [$where, $params] = $this->requestScope($who, $all);
         $stmt = $this->pdo->prepare(
             "SELECT MAX(r.updated_at), SUM(r.status IN ('" . implode("','", self::OPEN) . "')) FROM part_requests r WHERE $where"
@@ -237,6 +248,7 @@ final class CommsRepository
             'chat_last_id' => (int) $this->pdo->query('SELECT COALESCE(MAX(id), 0) FROM messages WHERE request_id IS NULL')->fetchColumn(),
             'requests_updated_at' => $updated === null ? null : self::iso($updated),
             'requests_open' => (int) $open,
+            'repairs_last_id' => $repairs,
         ];
     }
 

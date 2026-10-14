@@ -1714,6 +1714,7 @@
     var MAX_PHOTOS = 4;
     var SEEN_CHAT = 'lft:seen-chat';
     var SEEN_REQUESTS = 'lft:seen-requests';
+    var SEEN_REPAIRS = 'lft:seen-repairs';
     var trays = {};
     var pollTimer = null;
 
@@ -2357,8 +2358,12 @@
         var page = currentRoute().page;
         var chat = u.chat_last_id > Number(remember(SEEN_CHAT) || 0) && page !== 'chat';
         var req = !!u.requests_updated_at && u.requests_updated_at > (remember(SEEN_REQUESTS) || '') && page !== 'requests';
+        // Новые заявки на ремонт механику (из 1С или от мастера), пока он не открыл «Ремонт»
+        var rep = (u.repairs_last_id || 0) > Number(remember(SEEN_REPAIRS) || 0) && page !== 'repairs';
         $('[data-page="chat"]').toggleClass('has-new', chat);
-        $('[data-page="requests"]').toggleClass('has-new', req);
+        $('[data-page="requests"]').toggleClass('has-new', req || rep);
+        $('[data-switch="repairs"]').toggleClass('is-new', rep);
+        $('[data-switch="requests"]').toggleClass('is-new', req);
     }
 
     function checkUpdates() {
@@ -2369,6 +2374,10 @@
             // Первое открытие: старое не считается новым
             if (remember(SEEN_CHAT) === null) {
                 remember(SEEN_CHAT, String(u.chat_last_id));
+            }
+            // У мастера счётчик всегда 0: отметку ставим только в роли механика
+            if (remember(SEEN_REPAIRS) === null && !isMaster()) {
+                remember(SEEN_REPAIRS, String(u.repairs_last_id || 0));
             }
             if (remember(SEEN_REQUESTS) === null) {
                 remember(SEEN_REQUESTS, u.requests_updated_at || '');
@@ -2458,8 +2467,8 @@
 
     function reqSwitchHtml(active) {
         return '<div class="app-types app-journal-tabs app-req-switch" role="tablist">'
-            + '<a class="fp-chip app-type" aria-pressed="' + (active === 'repairs') + '" href="' + hashFor('repairs', {}) + '">' + icon('smile', 'lft-icon--12') + 'Ремонт · 1С</a>'
-            + '<a class="fp-chip app-type" aria-pressed="' + (active === 'requests') + '" href="' + hashFor('requests', {}) + '">' + icon('box', 'lft-icon--12') + 'Запчасти</a></div>';
+            + '<a class="fp-chip app-type" data-switch="repairs" aria-pressed="' + (active === 'repairs') + '" href="' + hashFor('repairs', {}) + '">' + icon('smile', 'lft-icon--12') + 'Ремонт</a>'
+            + '<a class="fp-chip app-type" data-switch="requests" aria-pressed="' + (active === 'requests') + '" href="' + hashFor('requests', {}) + '">' + icon('box', 'lft-icon--12') + 'Запчасти</a></div>';
     }
 
     function shortTime(iso) {
@@ -2494,12 +2503,13 @@
         // Закрыта: в 1С указано окончание ремонта или механик закрыл заявку записью в журнал
         var closed = !!(r.finished_at || r.journal_entry_id);
         var html = '<li class="app-rep' + (closed ? '' : ' is-open') + '" data-repair="' + r.id + '">'
-            + '<div class="app-rep-top"><span class="app-rep-num">' + esc(r.reg) + '</span>'
+            + '<div class="app-rep-top">' + (r.reg ? '<span class="app-rep-num">' + esc(r.reg) + '</span>' : '')
+            + (r.by_master ? '<span class="lft-badge lft-badge--warn">от мастера</span>' : '')
             + (mineMark ? '<span class="lft-badge lft-badge--ok">мой лифт</span>' : '')
             + (closed ? '' : '<span class="lft-badge lft-badge--alarm">не закрыта</span>')
             + (r.kind === 'planned' ? '<span class="lft-badge">плановая</span>' : '')
             + (r.stopped ? '<span class="lft-badge lft-badge--warn">лифт стоит</span>' : '')
-            + '<span class="app-rep-count' + repeatClass(r.stops_30d) + '" title="Остановок за 30 дней">' + r.stops_30d + ' за 30 дн.</span></div>'
+            + (r.by_master ? '' : '<span class="app-rep-count' + repeatClass(r.stops_30d) + '" title="Остановок за 30 дней">' + r.stops_30d + ' за 30 дн.</span>') + '</div>'
             + '<p class="app-rep-addr">' + esc(r.address) + (r.floor ? ' · эт. ' + esc(r.floor) : '') + '</p>'
             + '<p class="app-rep-time lft-label">' + esc(shortTime(r.started_at)) + ' → ' + (r.finished_at ? esc(shortTime(r.finished_at)) : (r.journal_entry_id ? 'закрыта в журнале' : 'ещё не закрыта')) + '</p>';
         if (codes.length) {
@@ -2549,11 +2559,12 @@
         $view.html(
             '<div class="app-pad app-req-page">'
             + reqSwitchHtml('repairs')
-            + '<div class="app-req-head"><div><p class="lft-label">' + icon('smile', 'lft-icon--12') + ' Заявки на ремонт · отчёт 1С</p>'
+            + '<div class="app-req-head"><div><p class="lft-label">' + icon('smile', 'lft-icon--12') + ' Заявки на ремонт · от мастера и из 1С</p>'
             + '<p class="fp-title" id="rep-title">' + (master ? 'Заявки участка' : 'Заявки по моим лифтам') + '</p>'
             + '<p class="app-muted" id="rep-period"></p></div>'
-            + (master ? '<label class="lft-btn app-rep-upload">' + icon('arrow-up') + 'Загрузить отчёт 1С'
-                + '<input type="file" id="rep-file" accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"></label>' : '')
+            + (master ? '<div class="app-rep-actions"><button type="button" class="lft-btn" id="rep-new">' + icon('warning') + 'Заявка механику</button>'
+                + '<label class="lft-btn lft-btn--ghost app-rep-upload">' + icon('arrow-up') + 'Загрузить отчёт 1С'
+                + '<input type="file" id="rep-file" accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"></label></div>' : '')
             + '</div>'
             + '<p class="app-field-error lft-label" id="rep-msg" hidden></p>'
             + '<div id="rep-body">' + loading() + '</div>'
@@ -2572,13 +2583,39 @@
         });
     }
 
+    // Заявки от мастера лично: над отчётом 1С, открытые и закрытые за неделю
+    function manualHtml(data, master) {
+        var mineOnly = !master && repairsScope === 'mine';
+        var list = $.grep(data.manual || [], function (x) { return !mineOnly || x.mine; });
+        if (!list.length) {
+            return '';
+        }
+        return '<section class="app-rep-manual"><p class="lft-label app-rep-manual-h">' + icon('warning', 'lft-icon--12') + 'От мастера · ' + list.length + '</p>'
+            + '<ul class="app-rep-list">' + $.map(list, function (x) { return repairCardHtml(x, master); }).join('') + '</ul></section>';
+    }
+
+    // «Ремонт» открыт: новые заявки механика просмотрены
+    function markRepairsSeen(data) {
+        var max = Number(remember(SEEN_REPAIRS) || 0);
+        $.each((data.items || []).concat(data.manual || []), function (_, x) {
+            if (x.mine && x.id > max) {
+                max = x.id;
+            }
+        });
+        remember(SEEN_REPAIRS, String(max));
+        drawDots();
+    }
+
     function drawRepairs() {
         var data = repairsData;
         var master = isMaster();
+        if (!master) {
+            markRepairsSeen(data);
+        }
         if (!data.report) {
-            $('#rep-body').html('<p class="app-empty">' + (master
-                ? 'Отчётов пока нет. Загрузите утренний отчёт 1С (файл XLSX из почты) — заявки разложатся по лифтам механиков.'
-                : 'Отчётов пока нет: мастер загружает отчёт 1С утром.') + '</p>');
+            $('#rep-body').html(manualHtml(data, master) + '<p class="app-empty">' + (master
+                ? 'Отчётов 1С пока нет. Загрузите утренний отчёт (файл XLSX из почты) — заявки разложатся по лифтам механиков.'
+                : 'Отчётов 1С пока нет: мастер загружает отчёт утром.') + '</p>');
             return;
         }
         var r = data.report;
@@ -2596,7 +2633,7 @@
         var mineCount = $.grep(data.items, function (x) { return x.mine; }).length;
         $('#rep-title').text(master || !mineOnly ? 'Заявки участка' : 'Заявки по моим лифтам');
 
-        var html = '';
+        var html = manualHtml(data, master) + '<p class="lft-label app-rep-manual-h">' + icon('journal', 'lft-icon--12') + 'Отчёт 1С</p>';
         if (data.reports.length > 1) {
             html += '<label class="fp-chip app-select app-rep-select">' + icon('journal') + '<select id="rep-report" aria-label="Отчёт">';
             $.each(data.reports, function (_, x) {
@@ -2693,7 +2730,7 @@
         })
         .on('click', '[data-repair-close]', function () {
             var id = Number($(this).data('repair-close'));
-            var r = $.grep(repairsData.items, function (x) { return x.id === id; })[0];
+            var r = $.grep(repairsData.items.concat(repairsData.manual || []), function (x) { return x.id === id; })[0];
             if (!r) {
                 return;
             }
@@ -2704,7 +2741,8 @@
                 lift: r.lift ? { id: r.lift.id, label: liftLabel(r.lift) + (r.lift.mechanic ? ' · ' + r.lift.mechanic : '') } : null,
                 draft: {
                     codes: codes,
-                    title: (r.kind === 'planned' ? notes.join(', ') || 'Плановые работы' : 'Заявка 1С' + (codes ? ': код ' + codes : '') + (notes.length ? (codes ? ', ' : ': ') + notes.join(', ') : '')),
+                    title: (r.kind === 'planned' ? notes.join(', ') || 'Плановые работы'
+                        : (r.by_master ? 'Заявка мастера' : 'Заявка 1С') + (codes ? ': код ' + codes : '') + (notes.length ? (codes ? ', ' : ': ') + notes.join(', ') : '')),
                     symptoms: $.trim('Заявка ' + shortTime(r.started_at) + (r.floor ? ', эт. ' + r.floor : '') + '. '
                         + (r.stopped ? 'Лифт стоял. ' : '') + (notes.length ? notes.join('. ') + '.' : '')),
                     status: 'resolved',
@@ -3006,6 +3044,98 @@
             $('#ai-code').val(ex.c);
             ai.code = ex.c;
             submitAi();
+        });
+
+    // ---------- Заявка механику от мастера ----------
+
+    function openRepairSheet() {
+        $('body').addClass('app-dd-lock').append('<div class="app-dd-backdrop app-sheet-backdrop"></div>'
+            + '<div class="app-sheet lft-window" role="dialog" aria-label="Заявка механику"><div class="lft-window__bar">'
+            + '<span class="lft-label">' + icon('warning', 'lft-icon--12') + ' Заявка механику</span>'
+            + '<button type="button" class="lft-window__x app-sheet-close" aria-label="Закрыть">×</button></div>'
+            + '<form class="lft-window__body" id="rep-new-form" novalidate>'
+            + '<div class="app-field"><span class="lft-label">Лифт *</span>'
+            + '<label class="fp-chip app-select">' + icon('lift')
+            + '<select name="lift_id" id="rep-new-lift" aria-label="Лифт"><option value="">Загрузка лифтов…</option></select></label></div>'
+            + '<label class="app-field"><span class="lft-label">Что случилось *</span>'
+            + '<textarea class="app-draft-input" name="info" rows="3" maxlength="500" placeholder="Например: жалоба жильцов, двери закрываются с ударом"></textarea></label>'
+            + '<div class="app-field-row">'
+            + '<label class="app-field"><span class="lft-label">Коды, если есть</span>'
+            + '<input class="app-draft-input" name="codes" maxlength="100" placeholder="45 44 C6" autocomplete="off"></label>'
+            + '<button type="button" class="fp-chip app-type app-urgent" id="rep-new-stopped" aria-pressed="false">' + icon('warning', 'lft-icon--12') + 'Лифт стоит</button>'
+            + '</div>'
+            + '<p class="lft-label app-muted">Механик лифта увидит заявку в «Заявках» и получит уведомление. «Лифт стоит» — срочное.</p>'
+            + '<p class="app-field-error lft-label" id="rep-new-error" hidden></p>'
+            + '<button type="submit" class="lft-btn" id="rep-new-submit">' + icon('arrow-up') + 'Отправить механику</button>'
+            + '</form></div>');
+
+        $.when(loadLifts(), api('/api/mechanics')).then(function (places, mechanics) {
+            var names = {};
+            $.each(mechanics.items, function (_, m) {
+                names[m.id] = m.name;
+            });
+            var html = '<option value="">Выберите лифт</option>';
+            var group = null;
+            $.each(places, function (_, p) {
+                if (p.mechanic_id !== group) {
+                    html += (group !== null ? '</optgroup>' : '') + '<optgroup label="' + esc(names[p.mechanic_id] || 'Без механика') + '">';
+                    group = p.mechanic_id;
+                }
+                $.each(p.lifts, function (_, l) {
+                    html += '<option value="' + Number(l.id) + '">'
+                        + esc(liftName({ address: p.address, object_name: p.object_name, lift_no: l.lift_no })) + '</option>';
+                });
+            });
+            $('#rep-new-lift').html(html + (group !== null ? '</optgroup>' : '')).each(function () {
+                customSelect(this);
+            });
+        }, function (error) {
+            $('#rep-new-error').text(errorText(error)).prop('hidden', false);
+        });
+    }
+
+    function submitRepair() {
+        var $form = $('#rep-new-form');
+        var $error = $('#rep-new-error').prop('hidden', true);
+        var lift = $form.find('[name="lift_id"]').val();
+        var body = {
+            lift_id: lift ? Number(lift) : null,
+            info: $.trim($form.find('[name="info"]').val()),
+            codes: $.trim($form.find('[name="codes"]').val()) || null,
+            stopped: $('#rep-new-stopped').attr('aria-pressed') === 'true',
+            as: asRole()
+        };
+        if (!body.lift_id || !body.info) {
+            $error.text(!body.lift_id ? 'Выберите лифт' : 'Напишите, что случилось').prop('hidden', false);
+            return;
+        }
+        $('#rep-new-submit').prop('disabled', true).attr('aria-busy', 'true');
+        apiPost('/api/repairs', body).then(function (data) {
+            var r = data.item;
+            $('.app-sheet .lft-window__body').html(
+                '<div class="app-done">' + icon('ok') + '</div>'
+                + '<p class="fp-title">Заявка отправлена</p>'
+                + '<p class="app-text">' + esc(r.lift ? liftLabel(r.lift) : r.address) + '</p>'
+                + '<p class="app-text app-muted">' + esc(r.mechanic ? 'Механик: ' + r.mechanic : 'У лифта нет механика — заявку видите только вы') + '</p>'
+                + '<div class="app-login-actions"><button type="button" class="lft-btn" data-close-sheet>Готово</button></div>'
+            );
+            if (currentRoute().page === 'repairs') {
+                render();
+            }
+        }, function (error) {
+            $('#rep-new-submit').prop('disabled', false).removeAttr('aria-busy');
+            $error.text(errorText(error)).prop('hidden', false);
+        });
+    }
+
+    $(document)
+        .on('click', '#rep-new', openRepairSheet)
+        .on('click', '#rep-new-stopped', function () {
+            $(this).attr('aria-pressed', $(this).attr('aria-pressed') === 'true' ? 'false' : 'true');
+        })
+        .on('submit', '#rep-new-form', function (e) {
+            e.preventDefault();
+            submitRepair();
         });
 
     // ---------- Push-уведомления ----------

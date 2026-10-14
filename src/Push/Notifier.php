@@ -149,6 +149,26 @@ final class Notifier
     }
 
     /**
+     * Заявка от мастера лично — механику лифта.
+     *
+     * @param array<string, mixed> $call заявка, как её отдаёт RepairsRepository
+     */
+    public function repairCreated(Identity $who, array $call, int $mechanicId): void
+    {
+        if (!$this->enabled()) {
+            return;
+        }
+        $lift = $call['lift'];
+        $place = $lift ? $lift['address'] . ($lift['object_name'] ? ' · ' . $lift['object_name'] : '') . ', лифт ' . $lift['lift_no'] : $call['address'];
+        $this->push($this->repo()->forMechanic($mechanicId, 'repairs', $who->login), [
+            'title' => 'Заявка от мастера' . ($call['stopped'] ? ' · лифт стоит' : ''),
+            'body' => self::cut($place . ' — ' . ($call['codes'] !== [] ? 'код ' . implode(' ', $call['codes']) . ', ' : '') . $call['info'], 300),
+            'url' => '#/repairs',
+            'tag' => 'repair-' . $call['id'],
+        ], (bool) $call['stopped']);
+    }
+
+    /**
      * Проверка с экрана настроек: уведомление только на это устройство, без учёта тишины.
      *
      * @param array{id: int, endpoint: string, p256dh: string, auth: string, quiet: bool} $subscription

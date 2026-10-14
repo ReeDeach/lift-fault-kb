@@ -6,6 +6,7 @@ namespace App\Repairs;
 
 use App\Auth\Identity;
 use App\Http\HttpException;
+use DateTimeImmutable;
 use PDO;
 
 /**
@@ -133,8 +134,55 @@ final class RepairsRepository
      */
     public function calls(Identity $who, bool $asMaster, int $reportId, bool $all = false): array
     {
-        $where = 'c.report_id = ?';
-        $params = [$reportId];
+        return $this->select($who, $asMaster, $all, 'c.report_id = ?', [$reportId]);
+    }
+
+    /**
+     * Заявки от мастера (не из 1С): открытые и закрытые за последнюю неделю. Права — как у calls().
+     *
+     * @return list<array<string, mixed>>
+     */
+    public function manualCalls(Identity $who, bool $asMaster, bool $all = false): array
+    {
+        return $this->select($who, $asMaster, $all, 'c.report_id IS NULL AND (c.journal_entry_id IS NULL OR c.created_at >= NOW() - INTERVAL 7 DAY)', []);
+    }
+
+    /**
+     * Мастер оставляет заявку на лифт сам. Механик лифта видит её в «Заявках» и получает уведомление.
+     *
+     * @param list<string> $codes
+     * @return array{item: array<string, mixed>, mechanic_id: int|null}
+     */
+    public function createManual(Identity $who, int $liftId, string $info, array $codes, bool $stopped, DateTimeImmutable $now): array
+    {
+        $stmt = $this->pdo->prepare('SELECT id, address, reg_number, mechanic_id FROM lifts WHERE id = ?');
+        $stmt->execute([$liftId]);
+        $lift = $stmt->fetch(PDO::FETCH_ASSOC);
+        if ($lift === false) {
+            throw new HttpException(400, 'Ошибка в данных', ['lift_id' => 'Такого лифта нет']);
+        }
+        $this->pdo->prepare(
+            'INSERT INTO repair_calls (report_id, lift_reg, address, started_at, stopped, info, codes, kind, lift_id, mechanic_id, created_by) '
+            . "VALUES (NULL, ?, ?, ?, ?, ?, ?, 'fault', ?, ?, ?)"
+        )->execute([
+            $lift['reg_number'] !== null && $lift['reg_number'] !== '' ? $lift['reg_number'] : null,
+            mb_substr($lift['address'], 0, 190), $now->format('Y-m-d H:i:s'), (int) $stopped, $info,
+            $codes === [] ? null : implode(' ', $codes), $liftId, $lift['mechanic_id'], $who->login,
+        ]);
+        $id = (int) $this->pdo->lastInsertId();
+
+        return [
+            'item' => $this->select($who, true, true, 'c.id = ?', [$id])[0],
+            'mechanic_id' => $lift['mechanic_id'] === null ? null : (int) $lift['mechanic_id'],
+        ];
+    }
+
+    /**
+     * @param list<mixed> $params
+     * @return list<array<string, mixed>>
+     */
+    private function select(Identity $who, bool $asMaster, bool $all, string $where, array $params): array
+    {
         $me = $asMaster ? null : ($who->mechanicId() ?? throw new HttpException(403, 'Войдите как механик'));
         if ($me !== null && !$all) {
             $where .= ' AND COALESCE(l.mechanic_id, c.mechanic_id) = ?';
@@ -164,6 +212,8 @@ final class RepairsRepository
                 'info' => $r['info'],
                 'codes' => $r['codes'] === null ? [] : explode(' ', $r['codes']),
                 'kind' => $r['kind'],
+                // Заявка от мастера лично, не из 1С
+                'by_master' => $r['report_id'] === null,
                 'journal_entry_id' => $r['journal_entry_id'] === null ? null : (int) $r['journal_entry_id'],
                 'lift' => $r['lift_id'] === null ? null : [
                     'id' => (int) $r['lift_id'],

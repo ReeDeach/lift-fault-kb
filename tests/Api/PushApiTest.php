@@ -98,6 +98,7 @@ final class PushApiTest extends TestCase
             $in = implode(',', array_fill(0, count($logins), '?'));
             $this->pdo->prepare("DELETE FROM messages WHERE author_login IN ($in)")->execute($logins);
             $this->pdo->prepare('DELETE FROM repair_reports WHERE section = ?')->execute(["УЧ.{$this->tag}"]);
+            $this->pdo->prepare('DELETE FROM repair_calls WHERE created_by = ?')->execute([self::MASTER]);
             $this->pdo->prepare('DELETE FROM lifts WHERE address LIKE ?')->execute([$this->street . '%']);
             $this->pdo->prepare('DELETE FROM mechanics WHERE name LIKE ?')->execute([$this->tag . '%']);
         }
@@ -234,6 +235,15 @@ final class PushApiTest extends TestCase
 
         $this->call(self::MASTER, 'POST', '/api/repairs/import', $report);
         $this->assertSame([], $this->takeSent(), 'Повторная загрузка того же отчёта не будит механика');
+
+        // Заявка от мастера лично — механику лифта, «лифт стоит» срочно
+        $lift = (int) $this->pdo->query("SELECT id FROM lifts WHERE address = '{$this->street} 3'")->fetchColumn();
+        $this->call(self::MASTER, 'POST', '/api/repairs', ['lift_id' => $lift, 'info' => 'Жалоба жильцов: скрежет', 'stopped' => true, 'as' => 'master']);
+        $sent = $this->takeSent();
+        $this->assertSame(['a'], array_keys($sent));
+        $this->assertSame('Заявка от мастера · лифт стоит', $sent['a']['title']);
+        $this->assertSame("{$this->street} 3, лифт 1 — Жалоба жильцов: скрежет", $sent['a']['body']);
+        $this->assertTrue($sent['a']['urgent']);
     }
 
     public function testTestNotificationGoesOnlyToOwnDevice(): void

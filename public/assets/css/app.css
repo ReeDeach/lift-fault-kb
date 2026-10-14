@@ -891,3 +891,12 @@ img.app-logo-light,.app-logo img.app-logo-light{display:none}
 /* Запись журнала, закрывшая заявку 1С */
 .app-pj-repair{display:inline-flex;align-items:center;gap:6px;align-self:start;color:var(--ok);text-decoration:none}
 .app-rep-hint{color:var(--muted);margin-top:-2px}
+/* Заявки на ремонт: от мастера и из 1С */
+.app-rep-actions{display:flex;flex-wrap:wrap;gap:8px}
+.app-rep-manual{display:grid;gap:8px;margin-bottom:20px}
+.app-rep-manual-h{display:flex;align-items:center;gap:6px;margin:0 0 8px}
+.app-rep-manual .app-rep-manual-h{margin:0}
+/* Точка «новое» на переключателе Ремонт / Запчасти */
+.app-req-switch .is-new{position:relative}
+.app-req-switch .is-new::after{content:"";position:absolute;top:-4px;right:-4px;width:8px;height:8px;background:var(--accent);box-shadow:0 0 0 2px var(--ground)}
+@media (max-width:560px){.app-rep-actions{width:100%}.app-rep-actions .lft-btn{flex:1 1 100%;justify-content:center}}

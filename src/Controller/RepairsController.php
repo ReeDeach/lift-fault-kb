@@ -12,11 +12,16 @@ use App\Http\Response;
 use App\Push\Notifier;
 use App\Repairs\RepairsRepository;
 use App\Repairs\ReportParser;
+use App\Support\CodeNormalizer;
+use App\Support\Env;
+use DateTimeImmutable;
+use DateTimeZone;
 
 /**
  * Заявки на ремонт из ежедневного отчёта 1С.
  *
  *   POST /api/repairs/import            {name, data: base64 XLSX} — загружает мастер
+ *   POST /api/repairs                   {lift_id, info, codes, stopped} — мастер оставляет заявку на лифт сам
  *   GET  /api/repairs?as=master&report=&scope=all заявки отчёта (по умолчанию последнего) и список отчётов;
  *                                       механику scope=all — весь участок (свои помечены mine)
  *   POST /api/repairs/{id}/lift         {lift_id, as} — указать лифт (мастер — любой, механик — свой), номер из 1С запоминается
@@ -62,6 +67,50 @@ final class RepairsController
         ], 201);
     }
 
+    public function create(Request $request): Response
+    {
+        $who = $this->master($request);
+        $body = $request->body;
+        $unknown = array_diff(array_map('strval', array_keys($body)), ['lift_id', 'info', 'codes', 'stopped', 'as']);
+        if ($unknown !== []) {
+            throw new HttpException(400, 'Ошибка в данных', array_fill_keys($unknown, 'Неизвестное поле'));
+        }
+        $errors = [];
+        $lift = $body['lift_id'] ?? null;
+        if (!is_int($lift) || $lift <= 0) {
+            $errors['lift_id'] = 'Выберите лифт';
+        }
+        $info = is_string($body['info'] ?? null) ? trim(preg_replace('/\s+/u', ' ', $body['info'])) : '';
+        if ($info === '' || mb_strlen($info) > 500) {
+            $errors['info'] = $info === '' ? 'Напишите, что случилось' : 'Не длиннее 500 символов';
+        }
+        $codes = $body['codes'] ?? null;
+        if ($codes !== null && (!is_string($codes) || mb_strlen($codes) > 100)) {
+            $errors['codes'] = 'Коды через пробел, не длиннее 100 символов';
+        }
+        $stopped = $body['stopped'] ?? false;
+        if (!is_bool($stopped)) {
+            $errors['stopped'] = 'Ожидается true или false';
+        }
+        if ($errors !== []) {
+            throw new HttpException(400, 'Ошибка в данных', $errors);
+        }
+        $list = [];
+        foreach (preg_split('/[\s,;]+/u', (string) $codes, -1, PREG_SPLIT_NO_EMPTY) ?: [] as $code) {
+            $code = strtoupper(CodeNormalizer::toLatin($code));
+            $list[$code] = $code;
+        }
+
+        // Время 1С местное, без пояса: заявку мастера пишем так же
+        $now = new DateTimeImmutable('now', new DateTimeZone(Env::get('APP_TIMEZONE', 'Europe/Minsk')));
+        $created = $this->repairs->createManual($who, $lift, $info, array_values($list), $stopped, $now);
+        if ($created['mechanic_id'] !== null) {
+            $this->notifier?->repairCreated($who, $created['item'], $created['mechanic_id']);
+        }
+
+        return Response::json(['item' => $created['item']], 201);
+    }
+
     public function index(Request $request): Response
     {
         $who = $this->auth->require($request);
@@ -85,10 +134,13 @@ final class RepairsController
             throw new HttpException(404, 'Отчёт не найден');
         }
 
+        $all = $request->queryString('scope') === 'all';
+
         return Response::json([
+            'manual' => $this->repairs->manualCalls($who, $asMaster, $all),
             'reports' => $reports,
             'report' => $report,
-            'items' => $report === null ? [] : $this->repairs->calls($who, $asMaster, $report['id'], $request->queryString('scope') === 'all'),
+            'items' => $report === null ? [] : $this->repairs->calls($who, $asMaster, $report['id'], $all),
         ]);
     }
 

@@ -69,6 +69,7 @@ final class RepairsApiTest extends TestCase
     {
         if (isset($this->pdo)) {
             $this->pdo->prepare('DELETE FROM repair_reports WHERE section = ?')->execute(["УЧ.{$this->tag}"]);
+            $this->pdo->prepare('DELETE FROM repair_calls WHERE created_by = ?')->execute([self::MASTER]);
             $this->pdo->prepare('DELETE FROM lifts WHERE address LIKE ?')->execute([$this->street . '%']);
             $this->pdo->prepare('DELETE FROM mechanics WHERE name LIKE ?')->execute([$this->tag . '%']);
         }
@@ -190,6 +191,45 @@ final class RepairsApiTest extends TestCase
         foreach ($b['items'] as $item) {
             $this->assertSame($this->lift['b2'], $item['lift']['id'], 'Номер 1С запомнен у лифта — обе заявки по нему сопоставлены');
         }
+    }
+
+    public function testMasterCreatesCallForMechanic(): void
+    {
+        [$status, $created] = $this->call(self::MASTER, 'POST', '/api/repairs', [
+            'lift_id' => $this->lift['a'], 'info' => 'Жалоба: двери  закрываются с ударом', 'codes' => '44 с6', 'stopped' => true, 'as' => 'master',
+        ]);
+        $this->assertSame(201, $status, json_encode($created, JSON_UNESCAPED_UNICODE));
+        $item = $created['item'];
+        $this->assertTrue($item['by_master']);
+        $this->assertSame(['44', 'C6'], $item['codes']);
+        $this->assertSame('Жалоба: двери закрываются с ударом', $item['info']);
+        $this->assertSame("{$this->tag} механик a", $item['mechanic']);
+        $this->assertNull($item['reg'], 'У лифта нет номера 1С');
+
+        // Механик лифта видит заявку отдельно от отчёта, другой механик — только во «всём участке»
+        [, $a] = $this->call(self::MECH_A, 'GET', '/api/repairs');
+        $this->assertSame([$item['id']], array_column($a['manual'], 'id'));
+        $this->assertTrue($a['manual'][0]['mine']);
+        [, $b] = $this->call(self::MECH_B, 'GET', '/api/repairs');
+        $this->assertSame([], $b['manual']);
+        [, $bAll] = $this->call(self::MECH_B, 'GET', '/api/repairs', query: ['scope' => 'all']);
+        $this->assertContains($item['id'], array_column($bAll['manual'], 'id'));
+
+        // Для точки «новое» на вкладке
+        [, $updates] = $this->call(self::MECH_A, 'GET', '/api/updates');
+        $this->assertGreaterThanOrEqual($item['id'], $updates['repairs_last_id']);
+
+        // Оставляет заявку только мастер, без лифта и текста нельзя
+        $this->assertSame(403, $this->call(self::MECH_A, 'POST', '/api/repairs', ['lift_id' => $this->lift['a'], 'info' => 'x'])[0]);
+        [$status, $error] = $this->call(self::MASTER, 'POST', '/api/repairs', ['info' => '', 'as' => 'master']);
+        $this->assertSame(400, $status);
+        $this->assertEqualsCanonicalizing(['lift_id', 'info'], array_keys($error['error']['fields']));
+
+        // Механик закрывает заявку мастера записью в журнал
+        [, $entry] = $this->call(self::MECH_A, 'POST', '/api/journal', ['lift_id' => $this->lift['a'], 'title' => 'Заявка мастера', 'status' => 'resolved']);
+        $this->assertSame(204, $this->call(self::MECH_A, 'POST', "/api/repairs/{$item['id']}/journal", ['entry_id' => $entry['item']['id']])[0]);
+        [, $a] = $this->call(self::MECH_A, 'GET', '/api/repairs');
+        $this->assertSame($entry['item']['id'], $a['manual'][0]['journal_entry_id'], 'Закрытая заявка остаётся в списке неделю');
     }
 
     public function testOnlyMasterImportsAndAssigns(): void
