@@ -2805,9 +2805,12 @@
         var token = ++renderToken;
         // Отдельного поиска больше нет: поиск по описанию делает ИИ-диагностика
         var page = route.page === 'search' ? 'ai' : route.page;
-        page = { codes: true, journal: true, base: true, ai: true, requests: true, repairs: true, chat: true }[page] ? page : 'codes';
+        page = { codes: true, journal: true, base: true, ai: true, requests: true, repairs: true, chat: true, access: true }[page] ? page : 'codes';
         if (page === 'base' && !isMaster()) {
             page = 'journal';
+        }
+        if (page === 'access' && !(session.me && session.me.is_master)) {
+            page = 'codes';
         }
 
         setActiveNav(page === 'base' ? 'journal' : (page === 'repairs' ? 'requests' : page));
@@ -2830,6 +2833,8 @@
             renderRequests(route.params, token);
         } else if (page === 'chat') {
             renderChat(token);
+        } else if (page === 'access') {
+            renderAccess(token);
         } else {
             renderCodes(route.params, token);
         }
@@ -2885,12 +2890,7 @@
                 $('#login-more').prepend('<p class="lft-label app-bad">' + esc(error.message) + '</p>');
             });
         })
-        .on('click', '#app-user', function () {
-            session.role = null;
-            storedRole(null);
-            drawUser();
-            render();
-        })
+        .on('click', '#app-user', openProfileSheet)
         .on('submit', '#pj-form', function (e) {
             e.preventDefault();
             go('journal', { q: $.trim($('#pj-q').val()), mechanic: $('#pj-mechanic').val() });
@@ -3091,6 +3091,84 @@
             $('#ai-code').val(ex.c);
             ai.code = ex.c;
             submitAi();
+        });
+
+    // ---------- Профиль и доступ из интернета ----------
+
+    function openProfileSheet() {
+        var name = isMaster() ? 'Мастер' : (session.me.mechanic ? session.me.mechanic.name : 'Механик');
+        $('body').addClass('app-dd-lock').append('<div class="app-dd-backdrop app-sheet-backdrop"></div>'
+            + '<div class="app-sheet lft-window" role="dialog" aria-label="Профиль"><div class="lft-window__bar">'
+            + '<span class="lft-label">' + icon('settings', 'lft-icon--12') + ' ' + esc(name) + '</span>'
+            + '<button type="button" class="lft-window__x app-sheet-close" aria-label="Закрыть">×</button></div>'
+            + '<div class="lft-window__body"><p class="app-hint">Вход: ' + esc(session.me.login) + '</p>'
+            + '<div class="app-login-actions">'
+            + (session.me.is_master ? '<a class="lft-btn" href="#/access" data-close-sheet>' + icon('building') + 'Доступ: кто может войти</a>' : '')
+            + '<button type="button" class="lft-btn lft-btn--ghost" id="switch-role">' + icon('settings') + 'Сменить роль</button>'
+            + '</div></div></div>');
+    }
+
+    function renderAccess(token) {
+        $view.html('<div class="app-pad app-access">'
+            + '<p class="lft-label">' + icon('building', 'lft-icon--12') + ' Доступ из интернета</p>'
+            + '<p class="fp-title">Кто может войти</p>'
+            + '<p class="app-hint">По ссылке из интернета входят через Google. Пускаем мастеров, механиков, чей аккаунт уже привязан, '
+            + 'и почты из списка ниже. Новый человек входит своей почтой Google и выбирает себя в списке механиков.</p>'
+            + '<form class="app-access-form" id="access-form" novalidate>'
+            + '<input class="app-draft-input" name="login" type="email" placeholder="почта@gmail.com" autocomplete="off" aria-label="Почта Google">'
+            + '<input class="app-draft-input" name="note" maxlength="100" placeholder="Кто это: Иванов, механик" autocomplete="off" aria-label="Кто это">'
+            + '<button type="submit" class="lft-btn">' + icon('arrow-up') + 'Добавить</button>'
+            + '<p class="app-field-error lft-label" id="access-error" hidden></p></form>'
+            + '<div id="access-body">' + loading() + '</div></div>');
+        api('/api/access').then(function (data) {
+            if (token !== renderToken) {
+                return;
+            }
+            var html = '<p class="lft-label app-rep-manual-h">Добавлены мастером · ' + data.added.length + '</p>';
+            html += data.added.length ? '<ul class="app-access-list">' + $.map(data.added, function (a) {
+                return '<li><span><b>' + esc(a.login) + '</b>' + (a.note || a.mechanic ? '<small>' + esc($.grep([a.note, a.mechanic ? 'механик: ' + a.mechanic : ''], Boolean).join(' · ')) + '</small>' : '') + '</span>'
+                    + '<button type="button" class="lft-btn lft-btn--ghost" data-access-remove="' + esc(a.login) + '">Убрать</button></li>';
+            }).join('') + '</ul>' : '<p class="app-hint">Пока никого. Добавьте почту — человек сможет войти по ссылке.</p>';
+            html += '<p class="lft-label app-rep-manual-h">Механики с привязанным аккаунтом · ' + data.mechanics.length + '</p>'
+                + '<ul class="app-access-list">' + $.map(data.mechanics, function (m) {
+                    return '<li><span><b>' + esc(m.name) + '</b><small>' + esc(m.login) + '</small></span></li>';
+                }).join('') + '</ul>'
+                + '<p class="lft-label app-rep-manual-h">Мастера · ' + data.masters.length + '</p>'
+                + '<ul class="app-access-list">' + $.map(data.masters, function (m) {
+                    return '<li><span><b>' + esc(m) + '</b></span></li>';
+                }).join('') + '</ul>';
+            $('#access-body').html(html);
+        }, function (error) {
+            $('#access-body').html(errorWindow(error, 'Доступ'));
+        });
+    }
+
+    $(document)
+        .on('click', '#switch-role', function () {
+            closeSaveSheet();
+            session.role = null;
+            storedRole(null);
+            drawUser();
+            render();
+        })
+        .on('submit', '#access-form', function (e) {
+            e.preventDefault();
+            var $f = $(this);
+            var $err = $('#access-error').prop('hidden', true);
+            apiPost('/api/access', { login: $.trim($f.find('[name="login"]').val()), note: $.trim($f.find('[name="note"]').val()) || null }).then(function () {
+                render();
+            }, function (error) {
+                $err.text(errorText(error)).prop('hidden', false);
+            });
+        })
+        .on('click', '[data-access-remove]', function () {
+            var login = String($(this).data('access-remove'));
+            if (!window.confirm('Убрать доступ для ' + login + '? Войти из интернета он больше не сможет.')) {
+                return;
+            }
+            apiPost('/api/access/remove', { login: login }).then(render, function (error) {
+                window.alert(errorText(error));
+            });
         });
 
     // ---------- Заявка механику от мастера ----------

@@ -5,6 +5,7 @@ declare(strict_types=1);
 use App\Admin\AdminRepository;
 use App\Auth\IdentityResolver;
 use App\Comms\CommsRepository;
+use App\Controller\AccessController;
 use App\Controller\AdminController;
 use App\Controller\CatalogController;
 use App\Controller\CodeController;
@@ -146,6 +147,12 @@ return static function (Router $router, ?Services $services = null): void {
     });
     $router->post('/api/repairs/{id}/lift', static fn ($r) => $repairs()->assignLift($r));
     $router->post('/api/repairs/{id}/journal', static fn ($r) => $repairs()->linkJournal($r));
+
+    // Кто может войти из интернета (ngrok): список ведёт мастер
+    $access = static fn (): AccessController => new AccessController($services->identity(), $services->pdo());
+    $router->get('/api/access', static fn ($r) => $access()->index($r));
+    $router->post('/api/access', static fn ($r) => $access()->add($r));
+    $router->post('/api/access/remove', static fn ($r) => $access()->remove($r));
 
     // Push-уведомления: подписка устройства и пробное уведомление
     $push = static fn (): PushController => new PushController(

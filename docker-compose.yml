@@ -7,6 +7,8 @@ services:
     volumes:
       - ./:/var/www/html:ro
       - ./docker/nginx/default.conf:/etc/nginx/conf.d/default.conf:ro
+      # Вход из интернета для ngrok: порт 8082 только внутри сети Docker
+      - ./docker/nginx/internet.conf:/etc/nginx/conf.d/internet.conf:ro
     depends_on:
       - php
 
@@ -49,6 +51,22 @@ services:
       - "127.0.0.1:9306:9306"
     volumes:
       - manticore-data:/var/lib/manticore
+
+  # Доступ из интернета без Tailscale: ngrok с входом через Google (docker/ngrok/policy.yml).
+  # Кого пускать, решает приложение: мастера, привязанные механики и список «Доступ».
+  # Запуск: docker compose --profile tunnel up -d ngrok
+  # NGROK_AUTHTOKEN и NGROK_DOMAIN — в .env (кабинет dashboard.ngrok.com).
+  ngrok:
+    image: ngrok/ngrok:latest
+    profiles: ["tunnel"]
+    restart: unless-stopped
+    command: ["http", "nginx:8082", "--url=${NGROK_DOMAIN:-}", "--traffic-policy-file=/etc/ngrok/policy.yml", "--log=stdout"]
+    environment:
+      NGROK_AUTHTOKEN: ${NGROK_AUTHTOKEN:-}
+    volumes:
+      - ./docker/ngrok/policy.yml:/etc/ngrok/policy.yml:ro
+    depends_on:
+      - nginx
 
 volumes:
   mysql-data:
