@@ -8,3 +8,4 @@ promo/.hyperframes/
 promo/assets/sound.wav
 sample/assets/sound*.wav
 out-sample.log
+*/.hyperframes/
