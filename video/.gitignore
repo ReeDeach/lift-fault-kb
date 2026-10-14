@@ -6,3 +6,5 @@ probe/
 promo/assets/sound-raw.wav
 promo/.hyperframes/
 promo/assets/sound.wav
+sample/assets/sound*.wav
+out-sample.log

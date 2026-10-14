@@ -24,7 +24,7 @@ const send = (method, params = {}) => new Promise((res, rej) => { const id = ++s
 const js = async (e) => { const r = await send('Runtime.evaluate', { expression: e, awaitPromise: true, returnByValue: true }); if (r.exceptionDetails) throw new Error(JSON.stringify(r.exceptionDetails).slice(0, 400)); return r.result.value; };
 
 await send('Emulation.setDeviceMetricsOverride', { width: 1080, height: 1920, deviceScaleFactor: 1, mobile: false });
-await send('Page.navigate', { url: pathToFileURL(join(ROOT, '..', 'promo', 'index.html')).href });
+await send('Page.navigate', { url: pathToFileURL(join(ROOT, '..', process.env.COMP || 'promo', 'index.html')).href });
 await sleep(2500);
 await js('document.fonts.ready.then(() => 1)');
 // Лист: кадры по 4 в ряд, каждый 270×480, подпись — время
