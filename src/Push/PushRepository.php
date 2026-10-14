@@ -80,13 +80,15 @@ final class PushRepository
     }
 
     /**
-     * Устройства мастера, включившие уведомления о заявках на запчасти.
+     * Устройства мастера по теме: requests — заявки на запчасти, repairs — закрытие заявок на ремонт.
      *
      * @return list<array{id: int, endpoint: string, p256dh: string, auth: string, quiet: bool}>
      */
-    public function forMaster(string $exceptLogin): array
+    public function forMaster(string $exceptLogin, string $topic = 'requests'): array
     {
-        return $this->select("role = 'master' AND requests = 1 AND login <> ?", [$exceptLogin]);
+        $column = $topic === 'repairs' ? 'repairs' : 'requests';
+
+        return $this->select("role = 'master' AND $column = 1 AND login <> ?", [$exceptLogin]);
     }
 
     /**

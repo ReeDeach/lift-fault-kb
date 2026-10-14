@@ -218,6 +218,7 @@ final class PushApiTest extends TestCase
 
     public function testRepairsNotifyOnlyNewCalls(): void
     {
+        $this->subscribe(self::MASTER, 'master', 'master', ['repairs' => true]);
         $this->subscribe(self::MECH_A, 'mechanic', 'a');
         $this->subscribe(self::MECH_B, 'mechanic', 'b');
         $street = mb_strtoupper($this->street);
@@ -242,8 +243,9 @@ final class PushApiTest extends TestCase
         [, $entry] = $this->call(self::MECH_B, 'POST', '/api/journal', ['lift_id' => $lift, 'title' => 'Подмена', 'status' => 'resolved']);
         $this->assertSame(204, $this->call(self::MECH_B, 'POST', "/api/repairs/$callId/journal", ['entry_id' => $entry['item']['id']])[0]);
         $sent = $this->takeSent();
-        $this->assertSame(['a'], array_keys($sent));
+        $this->assertSame(['a', 'master'], array_keys($sent));
         $this->assertSame("Заявку закрыл {$this->tag} механик b", $sent['a']['title']);
+        $this->assertSame("Заявка закрыта: устранено · {$this->tag} механик b", $sent['master']['title']);
 
         // Заявка от мастера лично — механику лифта, «лифт стоит» срочно
         $lift = (int) $this->pdo->query("SELECT id FROM lifts WHERE address = '{$this->street} 3'")->fetchColumn();

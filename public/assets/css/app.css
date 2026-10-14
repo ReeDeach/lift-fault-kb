@@ -914,3 +914,6 @@ img.app-logo-light,.app-logo img.app-logo-light{display:none}
 .app-hint{margin:0;color:var(--muted);font-size:14px;line-height:20px}
 .app-hint.app-rep-warn{color:var(--accent)}
 .app-hint.app-rep-warn.app-muted{color:var(--muted)}
+/* Заявка в журнале с итогом «наблюдать», «повторный выезд» — ещё не закрыта */
+.app-rep-done.is-pending{color:#ff8a2b}
+.app-rep-done-toggle{margin-top:12px}

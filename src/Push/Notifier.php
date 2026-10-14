@@ -187,6 +187,32 @@ final class Notifier
         ]);
     }
 
+    private const RESULTS = [
+        'resolved' => 'устранено',
+        'monitoring' => 'наблюдать',
+        'repeat_visit' => 'повторный выезд',
+        'unresolved' => 'не устранено',
+    ];
+
+    /**
+     * Механик закрыл заявку на ремонт — мастеру, с итогом из записи журнала.
+     *
+     * @param array{address: string, reg: ?string, status: string, title: string} $call
+     */
+    public function repairClosedToMaster(Identity $who, array $call): void
+    {
+        if (!$this->enabled()) {
+            return;
+        }
+        $result = self::RESULTS[$call['status']] ?? $call['status'];
+        $this->push($this->repo()->forMaster($who->login, 'repairs'), [
+            'title' => 'Заявка закрыта: ' . $result . ' · ' . ($who->mechanic['name'] ?? 'механик'),
+            'body' => self::cut($call['address'] . ($call['reg'] ? ' · № ' . $call['reg'] : '') . ' — ' . $call['title']),
+            'url' => '#/repairs',
+            'tag' => 'repair-closed',
+        ], $call['status'] !== 'resolved');
+    }
+
     /**
      * Проверка с экрана настроек: уведомление только на это устройство, без учёта тишины.
      *

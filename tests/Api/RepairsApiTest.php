@@ -209,6 +209,12 @@ final class RepairsApiTest extends TestCase
         [, $a] = $this->call(self::MECH_A, 'GET', '/api/repairs');
         $callId = $a['items'][0]['id'];
 
+        // Итог «наблюдать»: заявка ещё висит, её можно закрыть ещё раз
+        [, $watch] = $this->call(self::MECH_A, 'POST', '/api/journal', ['lift_id' => $this->lift['a'], 'title' => 'Наблюдать', 'status' => 'monitoring']);
+        $this->assertSame(204, $this->call(self::MECH_A, 'POST', "/api/repairs/$callId/journal", ['entry_id' => $watch['item']['id']])[0]);
+        [, $a] = $this->call(self::MECH_A, 'GET', '/api/repairs');
+        $this->assertSame('monitoring', $a['items'][0]['closed_status']);
+
         // Механик B подменил A: закрывает его заявку своей записью по лифту A
         [, $entryA] = $this->call(self::MECH_A, 'POST', '/api/journal', ['lift_id' => $this->lift['a'], 'title' => 'Запись A', 'status' => 'resolved']);
         [, $entryB] = $this->call(self::MECH_B, 'POST', '/api/journal', ['lift_id' => $this->lift['a'], 'codes' => '49', 'title' => 'Подмена: код 49', 'status' => 'resolved']);
@@ -220,6 +226,7 @@ final class RepairsApiTest extends TestCase
         [, $a] = $this->call(self::MECH_A, 'GET', '/api/repairs');
         $this->assertSame($entryB['item']['id'], $a['items'][0]['journal_entry_id']);
         $this->assertSame("{$this->tag} механик b", $a['items'][0]['closed_by']);
+        $this->assertSame('resolved', $a['items'][0]['closed_status']);
         $this->assertSame(409, $this->call(self::MECH_A, 'POST', "/api/repairs/$callId/journal", ['entry_id' => $entryA['item']['id']])[0]);
     }
 

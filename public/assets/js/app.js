@@ -2503,22 +2503,27 @@
     function repairCardHtml(r, master) {
         var codes = codeGroups(r.codes);
         var mineMark = !master && r.mine && repairsScope === 'all';
-        // Закрыта: в 1С указано окончание ремонта или механик закрыл заявку записью в журнал
-        var closed = !!(r.finished_at || r.journal_entry_id);
+        // Закрыта: в 1С указано окончание ремонта или записью в журнал с итогом «устранено».
+        // С итогом «наблюдать», «повторный выезд» заявка висит дальше, её можно закрыть ещё раз
+        var done = repairDone(r);
+        var pending = !!r.journal_entry_id && !done;
+        var result = pending ? (STATUSES[r.closed_status] || { text: r.closed_status, cls: 'lft-badge--warn' }) : null;
+        var closed = !!r.finished_at || done;
         var html = '<li class="app-rep' + (closed ? '' : ' is-open') + '" data-repair="' + r.id + '">'
             // Слева номер лифта из 1С, справа столбиком: значки состояния, под ними остановки за 30 дней
             + '<div class="app-rep-top">' + (r.reg ? '<span class="app-rep-num">' + esc(r.reg) + '</span>' : '')
             + '<div class="app-rep-flags"><div class="app-rep-badges">'
             + (r.by_master ? '<span class="lft-badge lft-badge--warn">от мастера</span>' : '')
             + (mineMark ? '<span class="lft-badge lft-badge--ok">мой лифт</span>' : '')
-            + (closed ? '' : '<span class="lft-badge lft-badge--alarm">не закрыта</span>')
+            + (result ? '<span class="lft-badge ' + result.cls + '">' + esc(result.text) + '</span>' : '')
+            + (closed || pending ? '' : '<span class="lft-badge lft-badge--alarm">не закрыта</span>')
             + (r.kind === 'planned' ? '<span class="lft-badge">плановая</span>' : '')
             + (r.stopped ? '<span class="lft-badge lft-badge--warn">лифт стоит</span>' : '')
             + '</div>'
             + (r.by_master ? '' : '<span class="app-rep-count' + repeatClass(r.stops_30d) + '" title="Сколько раз лифт останавливался за последние 30 дней (из отчёта 1С)">'
                 + r.stops_30d + ' ' + plural(r.stops_30d, 'остановка', 'остановки', 'остановок') + ' за 30 дней</span>') + '</div></div>'
             + '<p class="app-rep-addr">' + esc(r.address) + (r.floor ? ' · эт. ' + esc(r.floor) : '') + '</p>'
-            + '<p class="app-rep-time lft-label">' + esc(shortTime(r.started_at)) + ' → ' + (r.finished_at ? esc(shortTime(r.finished_at)) : (r.journal_entry_id ? 'закрыта в журнале' : 'ещё не закрыта')) + '</p>';
+            + '<p class="app-rep-time lft-label">' + esc(shortTime(r.started_at)) + ' → ' + (r.finished_at ? esc(shortTime(r.finished_at)) : (done ? 'закрыта в журнале' : (pending ? 'в журнале: ' + esc(result.text) : 'ещё не закрыта'))) + '</p>';
         if (codes.length) {
             html += '<div class="app-rep-codes">';
             $.each(codes, function (_, c) {
@@ -2548,9 +2553,11 @@
             html += '<p class="app-rep-who app-muted">' + icon('warning', 'lft-icon--12') + 'Адреса нет в списках лифтов бригады</p>';
         }
         if (r.journal_entry_id) {
-            html += '<a class="app-rep-done lft-label" href="' + hashFor('journal', { lift: r.lift ? r.lift.id : '' }) + '">' + icon('ok', 'lft-icon--12')
-                + 'Закрыта в журнале' + (r.closed_by ? ' · ' + esc(r.closed_by) : '') + '</a>';
-        } else {
+            html += '<a class="app-rep-done lft-label' + (pending ? ' is-pending' : '') + '" href="' + hashFor('journal', { lift: r.lift ? r.lift.id : '' }) + '">'
+                + icon(pending ? 'journal' : 'ok', 'lft-icon--12')
+                + (pending ? 'В журнале: ' + esc(result.text) : 'Закрыта в журнале') + (r.closed_by ? ' · ' + esc(r.closed_by) : '') + '</a>';
+        }
+        if (!done) {
             // Закрыть может любой механик бригады, не только тот, чей лифт
             html += '<button type="button" class="lft-btn lft-btn--ghost app-rep-close" data-repair-close="' + r.id + '" title="Запись в журнал лифта: что было и что сделано">'
                 + icon('ok', 'lft-icon--12') + 'Закрыть заявку</button>';
@@ -2561,6 +2568,7 @@
     var repairsData = null;
     var repairsKind = 'fault';
     var repairsScope = 'mine';
+    var repairsShowDone = false;
 
     function renderRepairs(params, token) {
         var master = isMaster();
@@ -2590,9 +2598,18 @@
     }
 
     // Заявки от мастера лично: над отчётом 1С, открытые и закрытые за неделю
+    function repairDone(r) {
+        return !!r.journal_entry_id && r.closed_status === 'resolved';
+    }
+
+    // Закрытые с итогом «устранено» скрыты, пока не нажать «Показать закрытые»
+    function visibleRepairs(list) {
+        return repairsShowDone ? list : $.grep(list, function (x) { return !repairDone(x); });
+    }
+
     function manualHtml(data, master) {
         var mineOnly = !master && repairsScope === 'mine';
-        var list = $.grep(data.manual || [], function (x) { return !mineOnly || x.mine; });
+        var list = visibleRepairs($.grep(data.manual || [], function (x) { return !mineOnly || x.mine; }));
         if (!list.length) {
             return '';
         }
@@ -2638,7 +2655,7 @@
         var mineOnly = !master && repairsScope === 'mine';
         var items = mineOnly ? $.grep(data.items, function (x) { return x.mine; }) : data.items;
         var faults = $.grep(items, function (x) { return x.kind === 'fault'; });
-        var open = $.grep(faults, function (x) { return !x.finished_at && !x.journal_entry_id; });
+        var open = $.grep(faults, function (x) { return !x.finished_at && !repairDone(x); });
         var stopped = $.grep(faults, function (x) { return x.stopped; });
         var heavy = {};
         $.each(faults, function (_, x) { if (x.stops_30d >= 4) { heavy[x.reg] = true; } });
@@ -2680,10 +2697,16 @@
             + '<button type="button" class="fp-chip app-type" data-rep-kind="fault" aria-pressed="' + (repairsKind === 'fault') + '">Неисправности · ' + faults.length + '</button>'
             + '<button type="button" class="fp-chip app-type" data-rep-kind="planned" aria-pressed="' + (repairsKind === 'planned') + '">ТО и работы · ' + (items.length - faults.length) + '</button>'
             + '<button type="button" class="fp-chip app-type" data-rep-kind="all" aria-pressed="' + (repairsKind === 'all') + '">Все · ' + items.length + '</button></div>';
-        var shown = $.grep(items, function (x) { return repairsKind === 'all' || x.kind === repairsKind; });
+        var ofKind = $.grep(items, function (x) { return repairsKind === 'all' || x.kind === repairsKind; });
+        var shown = visibleRepairs(ofKind);
+        var doneCount = $.grep(ofKind.concat(data.manual || []), function (x) { return repairDone(x) && (!mineOnly || x.mine); }).length;
         html += shown.length
             ? '<ul class="app-rep-list">' + $.map(shown, function (x) { return repairCardHtml(x, master); }).join('') + '</ul>'
-            : '<p class="app-empty">' + (mineOnly ? 'По вашим лифтам заявок этого вида нет.' : 'Нет заявок этого вида.') + '</p>';
+            : '<p class="app-empty">' + (ofKind.length ? 'Все заявки этого вида закрыты.' : (mineOnly ? 'По вашим лифтам заявок этого вида нет.' : 'Нет заявок этого вида.')) + '</p>';
+        if (doneCount) {
+            html += '<button type="button" class="fp-chip app-type app-rep-done-toggle" data-rep-done aria-pressed="' + repairsShowDone + '">'
+                + icon('ok', 'lft-icon--12') + (repairsShowDone ? 'Скрыть закрытые' : 'Показать закрытые · ' + doneCount) + '</button>';
+        }
         $('#rep-body').html(html);
         $('#rep-body .app-select select').each(function () {
             customSelect(this);
@@ -2730,6 +2753,10 @@
         })
         .on('change', '#rep-report', function () {
             go('repairs', { report: $(this).val() });
+        })
+        .on('click', '[data-rep-done]', function () {
+            repairsShowDone = !repairsShowDone;
+            drawRepairs();
         })
         .on('click', '[data-rep-scope]', function () {
             repairsScope = String($(this).data('rep-scope'));
@@ -3338,6 +3365,7 @@
         var off = !push.on;
         var topics = isMaster()
             ? switchHtml('data-push-pref="requests"', prefs.requests, 'Заявки на запчасти', 'Новые заявки и ответы механиков', off)
+                + switchHtml('data-push-pref="repairs"', prefs.repairs, 'Закрытие заявок на ремонт', 'Механик закрыл заявку: итог и кто закрыл', off)
             : switchHtml('data-push-pref="repairs"', prefs.repairs, 'Заявки на ремонт', 'Новые вызовы по моим лифтам из отчёта 1С', off)
                 + switchHtml('data-push-pref="requests"', prefs.requests, 'Мои заявки на запчасти', 'Ответ мастера и смена статуса', off);
         $body.html(

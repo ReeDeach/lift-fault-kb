@@ -190,7 +190,7 @@ final class RepairsRepository
         }
         $stmt = $this->pdo->prepare(
             'SELECT c.*, l.address AS lift_address, l.object_name, l.lift_no, l.entrance, COALESCE(l.mechanic_id, c.mechanic_id) AS owner_id, m.name AS mechanic_name '
-            . ', j.author_id AS closer_id, cm.name AS closer_name '
+            . ', j.author_id AS closer_id, j.status AS closed_status, cm.name AS closer_name '
             . 'FROM repair_calls c LEFT JOIN lifts l ON l.id = c.lift_id LEFT JOIN mechanics m ON m.id = COALESCE(l.mechanic_id, c.mechanic_id) '
             . 'LEFT JOIN journal_entries j ON j.id = c.journal_entry_id LEFT JOIN mechanics cm ON cm.id = j.author_id '
             . "WHERE $where ORDER BY (c.finished_at IS NULL) DESC, c.started_at DESC"
@@ -219,6 +219,8 @@ final class RepairsRepository
                 'journal_entry_id' => $r['journal_entry_id'] === null ? null : (int) $r['journal_entry_id'],
                 // Кто закрыл заявку записью в журнал: механик или мастер (запись без автора-механика)
                 'closed_by' => $r['journal_entry_id'] === null ? null : ($r['closer_name'] ?? 'Мастер'),
+                // Итог записи: resolved — заявка выполнена, остальное (наблюдать, повторный выезд) — ещё висит
+                'closed_status' => $r['closed_status'],
                 'lift' => $r['lift_id'] === null ? null : [
                     'id' => (int) $r['lift_id'],
                     'address' => $r['lift_address'],
@@ -291,13 +293,13 @@ final class RepairsRepository
      * закрытую — повторно нельзя. Если лифт заявки ещё не был известен, он берётся из записи
      * (по правилам assignLift: механик — только свой лифт).
      *
-     * @return array{owner_id: int|null, address: string, reg: string|null} чья заявка — для уведомления
+     * @return array{owner_id: int|null, address: string, reg: string|null, status: string, title: string} для уведомлений
      */
     public function linkJournal(Identity $who, bool $asMaster, int $callId, int $entryId): array
     {
         $stmt = $this->pdo->prepare(
-            'SELECT c.lift_id, c.lift_reg, c.address, c.journal_entry_id, COALESCE(l.mechanic_id, c.mechanic_id) AS mechanic_id '
-            . 'FROM repair_calls c LEFT JOIN lifts l ON l.id = c.lift_id WHERE c.id = ?'
+            'SELECT c.lift_id, c.lift_reg, c.address, c.journal_entry_id, pj.status AS prev_status, COALESCE(l.mechanic_id, c.mechanic_id) AS mechanic_id '
+            . 'FROM repair_calls c LEFT JOIN lifts l ON l.id = c.lift_id LEFT JOIN journal_entries pj ON pj.id = c.journal_entry_id WHERE c.id = ?'
         );
         $stmt->execute([$callId]);
         $call = $stmt->fetch(PDO::FETCH_ASSOC);
@@ -308,10 +310,11 @@ final class RepairsRepository
         if (!$asMaster && $who->mechanicId() === null) {
             throw new HttpException(403, 'Войдите как механик или мастер');
         }
-        if ($call['journal_entry_id'] !== null) {
+        // Закрытую с итогом «устранено» повторно не закрыть; «наблюдать», «повторный выезд» — можно дописать
+        if ($call['journal_entry_id'] !== null && $call['prev_status'] === 'resolved') {
             throw new HttpException(409, 'Заявка уже закрыта записью в журнале');
         }
-        $stmt = $this->pdo->prepare('SELECT lift_id, author_id FROM journal_entries WHERE id = ?');
+        $stmt = $this->pdo->prepare('SELECT lift_id, author_id, status, title FROM journal_entries WHERE id = ?');
         $stmt->execute([$entryId]);
         $entry = $stmt->fetch(PDO::FETCH_ASSOC);
         $entryLift = $entry === false ? false : $entry['lift_id'];
@@ -334,6 +337,8 @@ final class RepairsRepository
             'owner_id' => $call['mechanic_id'] === null ? null : (int) $call['mechanic_id'],
             'address' => $call['address'],
             'reg' => $call['lift_reg'],
+            'status' => $entry['status'],
+            'title' => $entry['title'],
         ];
     }
 

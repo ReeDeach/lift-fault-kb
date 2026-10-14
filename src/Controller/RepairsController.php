@@ -169,6 +169,10 @@ final class RepairsController
         if ($closed['owner_id'] !== null && $closed['owner_id'] !== ($asMaster ? null : $who->mechanicId())) {
             $this->notifier?->repairClosedByOther($who, $asMaster, $closed, $closed['owner_id']);
         }
+        // И мастеру — что заявка закрыта и с каким итогом (если закрыл не он сам)
+        if (!$asMaster) {
+            $this->notifier?->repairClosedToMaster($who, $closed);
+        }
 
         return new Response(204);
     }
