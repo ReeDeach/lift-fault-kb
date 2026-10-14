@@ -9,6 +9,27 @@
 > безопасность людей: работы на оборудовании выполняет только обученный и
 > допущенный персонал. Ответы ИИ-диагностики носят справочный характер.
 
+## Скриншоты
+
+Демо-версия на телефоне. Все адреса, механики и записи вымышлены.
+
+<table>
+<tr>
+<td align="center"><img src="docs/screenshots/codes.webp" width="220" alt="Код 44 с пульта: что значит и причины"><br><sub>Код с пульта: что значит, причины</sub></td>
+<td align="center"><img src="docs/screenshots/ai.webp" width="220" alt="ИИ-диагностика по описанию и коду"><br><sub>ИИ-диагностика</sub></td>
+<td align="center"><img src="docs/screenshots/journal.webp" width="220" alt="Журнал случаев по лифтам"><br><sub>Журнал случаев</sub></td>
+<td align="center"><img src="docs/screenshots/repairs.webp" width="220" alt="Заявки на ремонт механика: от мастера и из 1С"><br><sub>Заявки механика: от мастера и из 1С</sub></td>
+</tr>
+<tr>
+<td align="center"><img src="docs/screenshots/repairs-master-light.webp" width="220" alt="Заявки участка у мастера, светлая тема"><br><sub>Мастер: заявка механику, отчёт 1С</sub></td>
+<td align="center"><img src="docs/screenshots/requests.webp" width="220" alt="Заявки на запчасти мастеру"><br><sub>Заявки на запчасти</sub></td>
+<td align="center"><img src="docs/screenshots/chat.webp" width="220" alt="Общий чат механиков"><br><sub>Общий чат бригады</sub></td>
+<td align="center"><img src="docs/screenshots/push.webp" width="220" alt="Настройки push-уведомлений"><br><sub>Push-уведомления</sub></td>
+</tr>
+</table>
+
+Скриншоты снимаются с демо (`docker-compose.demo.yml`) в безголовом браузере на ширине 390 px.
+
 ## Стек
 
 - PHP 8.3, MySQL 8

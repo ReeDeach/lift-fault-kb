@@ -2509,7 +2509,8 @@
             + (closed ? '' : '<span class="lft-badge lft-badge--alarm">не закрыта</span>')
             + (r.kind === 'planned' ? '<span class="lft-badge">плановая</span>' : '')
             + (r.stopped ? '<span class="lft-badge lft-badge--warn">лифт стоит</span>' : '')
-            + (r.by_master ? '' : '<span class="app-rep-count' + repeatClass(r.stops_30d) + '" title="Остановок за 30 дней">' + r.stops_30d + ' за 30 дн.</span>') + '</div>'
+            + (r.by_master ? '' : '<span class="app-rep-count' + repeatClass(r.stops_30d) + '" title="Сколько раз лифт останавливался за последние 30 дней (из отчёта 1С)">'
+                + r.stops_30d + ' ' + plural(r.stops_30d, 'остановка', 'остановки', 'остановок') + ' за 30 дней</span>') + '</div>'
             + '<p class="app-rep-addr">' + esc(r.address) + (r.floor ? ' · эт. ' + esc(r.floor) : '') + '</p>'
             + '<p class="app-rep-time lft-label">' + esc(shortTime(r.started_at)) + ' → ' + (r.finished_at ? esc(shortTime(r.finished_at)) : (r.journal_entry_id ? 'закрыта в журнале' : 'ещё не закрыта')) + '</p>';
         if (codes.length) {
@@ -2528,18 +2529,17 @@
         } else if (!master && !r.mine) {
             html += '<p class="app-rep-who app-muted">' + icon('settings', 'lft-icon--12')
                 + (r.mechanic ? esc(r.mechanic) + ' · лифт не уточнён' : 'Адреса нет в списках лифтов бригады') + '</p>';
-        } else if (master || r.candidates.length) {
+        } else if (r.candidates.length) {
             html += '<div class="app-rep-match"><span class="app-hint"><b>' + (master ? 'Чей это лифт?' : 'Какой из ваших лифтов?')
                 + '</b> Выберите один раз — номер ' + esc(r.reg) + ' запомнится</span>';
-            if (r.candidates.length) {
-                $.each(r.candidates, function (_, c) {
-                    html += '<button type="button" class="fp-chip app-type" data-repair-lift="' + c.id + '">'
-                        + esc(liftLabel(c)) + (master && c.mechanic ? ' · ' + esc(c.mechanic) : '') + (c.reg ? ' · №' + esc(c.reg) : '') + '</button>';
-                });
-            } else {
-                html += '<span class="app-muted">Адреса нет в списках лифтов бригады</span>';
-            }
+            $.each(r.candidates, function (_, c) {
+                html += '<button type="button" class="fp-chip app-type" data-repair-lift="' + c.id + '">'
+                    + esc(liftLabel(c)) + (master && c.mechanic ? ' · ' + esc(c.mechanic) : '') + (c.reg ? ' · №' + esc(c.reg) : '') + '</button>';
+            });
             html += '</div>';
+        } else if (master) {
+            // Выбирать не из чего: адреса нет среди лифтов бригады
+            html += '<p class="app-rep-who app-muted">' + icon('warning', 'lft-icon--12') + 'Адреса нет в списках лифтов бригады</p>';
         }
         if (r.journal_entry_id) {
             html += '<a class="app-rep-done lft-label" href="' + hashFor('journal', { lift: r.lift ? r.lift.id : '' }) + '">' + icon('ok', 'lft-icon--12') + 'Закрыта записью в журнале</a>';
@@ -2656,10 +2656,17 @@
             + '<div><b>' + faults.length + '</b><span class="lft-label">неисправностей</span></div>'
             + '<div class="bad"><b>' + open.length + '</b><span class="lft-label">из них не закрыты</span></div>'
             + '<div class="bad"><b>' + stopped.length + '</b><span class="lft-label">лифт стоял</span></div>'
-            + '<div class="bad"><b>' + Object.keys(heavy).length + '</b><span class="lft-label">частые: 4+ ост. за 30 дн.</span></div>'
+            + '<div class="bad"><b>' + Object.keys(heavy).length + '</b><span class="lft-label">частые: 4+ остановок за 30 дней</span></div>'
             + '</div>';
-        if (master && unmatched.length) {
-            html += '<p class="app-rep-warn app-hint">' + icon('warning', 'lft-icon--12') + unmatched.length + ' ' + plural(unmatched.length, 'заявка', 'заявки', 'заявок') + ' без лифта: укажите, чей это лифт, — механик увидит заявку</p>';
+        var pick = $.grep(unmatched, function (x) { return x.candidates.length; }).length;
+        var unknown = unmatched.length - pick;
+        if (master && pick) {
+            html += '<p class="app-rep-warn app-hint">' + icon('warning', 'lft-icon--12') + pick + ' ' + plural(pick, 'заявка', 'заявки', 'заявок')
+                + ': укажите, чей это лифт, — механик увидит заявку</p>';
+        }
+        if (master && unknown) {
+            html += '<p class="app-rep-warn app-hint app-muted">' + icon('warning', 'lft-icon--12') + unknown + ' ' + plural(unknown, 'заявка', 'заявки', 'заявок')
+                + ' по адресам, которых нет в списках лифтов бригады</p>';
         }
         html += '<div class="app-types app-journal-tabs" role="tablist">'
             + '<button type="button" class="fp-chip app-type" data-rep-kind="fault" aria-pressed="' + (repairsKind === 'fault') + '">Неисправности · ' + faults.length + '</button>'

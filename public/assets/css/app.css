@@ -908,3 +908,4 @@ img.app-logo-light,.app-logo img.app-logo-light{display:none}
 /* Пояснение в форме: обычный текст, не мелкие заглавные */
 .app-hint{margin:0;color:var(--muted);font-size:14px;line-height:20px}
 .app-hint.app-rep-warn{color:var(--accent)}
+.app-hint.app-rep-warn.app-muted{color:var(--muted)}
