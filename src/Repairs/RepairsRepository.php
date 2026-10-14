@@ -231,7 +231,8 @@ final class RepairsRepository
     }
 
     /**
-     * Заявка закрыта записью в журнал.
+     * Заявка закрыта записью в журнал. Если лифт заявки ещё не был известен, он берётся
+     * из записи (по правилам assignLift: механик — только свой лифт).
      */
     public function linkJournal(Identity $who, bool $asMaster, int $callId, int $entryId): void
     {
@@ -250,6 +251,13 @@ final class RepairsRepository
             throw new HttpException(400, 'Ошибка в данных', ['entry_id' => 'Запись журнала не найдена или по другому лифту']);
         }
         $this->pdo->prepare('UPDATE repair_calls SET journal_entry_id = ? WHERE id = ?')->execute([$entryId, $callId]);
+        if ($call['lift_id'] === null) {
+            try {
+                $this->assignLift($who, $asMaster, $callId, (int) $entryLift);
+            } catch (HttpException) {
+                // Запись по чужому лифту: заявка закрыта, лифт укажет мастер
+            }
+        }
     }
 
     /**

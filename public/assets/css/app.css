@@ -888,3 +888,6 @@ img.app-logo-light,.app-logo img.app-logo-light{display:none}
 @media (max-width:1023px){.app-user+.app-theme,.app-theme+.app-push{margin-left:0}}
 /* Узкие телефоны (360px): логотип чуть меньше, чтобы имя не сжималось до пары букв */
 @media (max-width:400px){.fp-top img{height:28px}}
+/* Запись журнала, закрывшая заявку 1С */
+.app-pj-repair{display:inline-flex;align-items:center;gap:6px;align-self:start;color:var(--ok);text-decoration:none}
+.app-rep-hint{color:var(--muted);margin-top:-2px}

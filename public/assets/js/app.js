@@ -1479,6 +1479,8 @@
             + '<a class="app-pj-lift" href="' + hashFor('journal', { lift: e.lift.id, mechanic: master ? currentRoute().params.mechanic : null }) + '">'
             + icon('building', 'lft-icon--12') + esc(liftName(e.lift)) + '</a>'
             + '<p class="app-pj-title">' + (e.codes ? '<b class="app-pj-codes">' + esc(e.codes) + '</b>' : '') + esc(e.title) + '</p>'
+            + (e.repair ? '<a class="app-pj-repair lft-label" href="' + hashFor('repairs', { report: e.repair.report_id }) + '">'
+                + icon('smile', 'lft-icon--12') + 'Закрыта заявка 1С № ' + esc(e.repair.reg) + ' от ' + esc(shortTime(e.repair.started_at)) + '</a>' : '')
             + (details ? '<details class="app-fix"><summary>' + icon('journal', 'lft-icon--12') + '<span>Подробно</span><span class="lft-label">'
                 + (e.source === 'ai' ? 'из ИИ' : 'вручную') + '</span></summary><div class="app-fix-body">' + details
                 + '<p class="lft-label">Записал: ' + esc(e.author ? e.author.name : 'мастер') + '</p>'
@@ -1523,7 +1525,7 @@
             return;
         }
         saving = { mechanic: session.me.mechanic ? session.me.mechanic.id : null, place: null, lift: null, draft: null, draftRequest: null, manual: !!manual, preset: preset || null };
-        var title = manual ? 'Новая запись в журнал' : 'Сохранить в журнал';
+        var title = preset && preset.repair_id ? 'Закрыть заявку 1С' : (manual ? 'Новая запись в журнал' : 'Сохранить в журнал');
         $('body').addClass('app-dd-lock').append('<div class="app-dd-backdrop app-sheet-backdrop"></div>'
             + '<div class="app-sheet lft-window" role="dialog" aria-label="' + title + '"><div class="lft-window__bar">'
             + '<span class="lft-label">' + icon('journal', 'lft-icon--12') + ' ' + title + '</span>'
@@ -1658,12 +1660,19 @@
         $('#save-submit').prop('disabled', true).attr('aria-busy', 'true');
         apiPost('/api/journal', body).then(function (data) {
             liftsRequest = null;
-            if (saving.preset && saving.preset.repair_id) {
-                apiPost('/api/repairs/' + saving.preset.repair_id + '/journal', { entry_id: data.item.id, as: asRole() });
+            var closing = saving.preset && saving.preset.repair_id;
+            if (closing) {
+                apiPost('/api/repairs/' + saving.preset.repair_id + '/journal', { entry_id: data.item.id, as: asRole() }).then(function () {
+                    if (currentRoute().page === 'repairs') {
+                        render();
+                    }
+                }, function (error) {
+                    $('.app-sheet .lft-window__body').append('<p class="lft-label app-bad">Запись сохранена, но заявку закрыть не удалось: ' + esc(errorText(error)) + '</p>');
+                });
             }
             $('.app-sheet .lft-window__body').html(
                 '<div class="app-done">' + icon('ok') + '</div>'
-                + '<p class="fp-title">Записано</p>'
+                + '<p class="fp-title">' + (closing ? 'Заявка закрыта' : 'Записано') + '</p>'
                 + '<p class="app-text">' + esc(liftName(data.item.lift)) + '</p>'
                 + '<p class="app-text app-muted">' + esc(data.item.title) + '</p>'
                 + '<div class="app-login-actions"><a class="lft-btn" href="' + hashFor('journal', { lift: data.item.lift.id }) + '" data-close-sheet>Открыть журнал лифта</a>'
@@ -2482,15 +2491,17 @@
     function repairCardHtml(r, master) {
         var codes = codeGroups(r.codes);
         var mineMark = !master && r.mine && repairsScope === 'all';
-        var html = '<li class="app-rep' + (r.finished_at ? '' : ' is-open') + '" data-repair="' + r.id + '">'
+        // Закрыта: в 1С указано окончание ремонта или механик закрыл заявку записью в журнал
+        var closed = !!(r.finished_at || r.journal_entry_id);
+        var html = '<li class="app-rep' + (closed ? '' : ' is-open') + '" data-repair="' + r.id + '">'
             + '<div class="app-rep-top"><span class="app-rep-num">' + esc(r.reg) + '</span>'
             + (mineMark ? '<span class="lft-badge lft-badge--ok">мой лифт</span>' : '')
-            + (r.finished_at ? '' : '<span class="lft-badge lft-badge--alarm">не закрыта</span>')
+            + (closed ? '' : '<span class="lft-badge lft-badge--alarm">не закрыта</span>')
             + (r.kind === 'planned' ? '<span class="lft-badge">плановая</span>' : '')
             + (r.stopped ? '<span class="lft-badge lft-badge--warn">лифт стоит</span>' : '')
             + '<span class="app-rep-count' + repeatClass(r.stops_30d) + '" title="Остановок за 30 дней">' + r.stops_30d + ' за 30 дн.</span></div>'
             + '<p class="app-rep-addr">' + esc(r.address) + (r.floor ? ' · эт. ' + esc(r.floor) : '') + '</p>'
-            + '<p class="app-rep-time lft-label">' + esc(shortTime(r.started_at)) + ' → ' + (r.finished_at ? esc(shortTime(r.finished_at)) : 'ещё не закрыта') + '</p>';
+            + '<p class="app-rep-time lft-label">' + esc(shortTime(r.started_at)) + ' → ' + (r.finished_at ? esc(shortTime(r.finished_at)) : (r.journal_entry_id ? 'закрыта в журнале' : 'ещё не закрыта')) + '</p>';
         if (codes.length) {
             html += '<div class="app-rep-codes">';
             $.each(codes, function (_, c) {
@@ -2522,8 +2533,9 @@
         }
         if (r.journal_entry_id) {
             html += '<a class="app-rep-done lft-label" href="' + hashFor('journal', { lift: r.lift ? r.lift.id : '' }) + '">' + icon('ok', 'lft-icon--12') + 'Закрыта записью в журнале</a>';
-        } else if (r.kind === 'fault' && (master || r.mine)) {
-            html += '<button type="button" class="lft-btn lft-btn--ghost app-rep-close" data-repair-close="' + r.id + '">' + icon('journal', 'lft-icon--12') + 'Закрыть записью в журнал</button>';
+        } else if (master || r.mine) {
+            html += '<button type="button" class="lft-btn lft-btn--ghost app-rep-close" data-repair-close="' + r.id + '">' + icon('ok', 'lft-icon--12') + 'Закрыть заявку</button>'
+                + '<span class="app-rep-hint lft-label">Запись в журнал лифта: что было и что сделано</span>';
         }
         return html + '</li>';
     }
@@ -2576,7 +2588,7 @@
         var mineOnly = !master && repairsScope === 'mine';
         var items = mineOnly ? $.grep(data.items, function (x) { return x.mine; }) : data.items;
         var faults = $.grep(items, function (x) { return x.kind === 'fault'; });
-        var open = $.grep(faults, function (x) { return !x.finished_at; });
+        var open = $.grep(faults, function (x) { return !x.finished_at && !x.journal_entry_id; });
         var stopped = $.grep(faults, function (x) { return x.stopped; });
         var heavy = {};
         $.each(faults, function (_, x) { if (x.stops_30d >= 4) { heavy[x.reg] = true; } });
@@ -2692,7 +2704,7 @@
                 lift: r.lift ? { id: r.lift.id, label: liftLabel(r.lift) + (r.lift.mechanic ? ' · ' + r.lift.mechanic : '') } : null,
                 draft: {
                     codes: codes,
-                    title: 'Заявка 1С' + (codes ? ': код ' + codes : '') + (notes.length ? (codes ? ', ' : ': ') + notes.join(', ') : ''),
+                    title: (r.kind === 'planned' ? notes.join(', ') || 'Плановые работы' : 'Заявка 1С' + (codes ? ': код ' + codes : '') + (notes.length ? (codes ? ', ' : ': ') + notes.join(', ') : '')),
                     symptoms: $.trim('Заявка ' + shortTime(r.started_at) + (r.floor ? ', эт. ' + r.floor : '') + '. '
                         + (r.stopped ? 'Лифт стоял. ' : '') + (notes.length ? notes.join('. ') + '.' : '')),
                     status: 'resolved',

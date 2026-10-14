@@ -172,8 +172,24 @@ final class RepairsApiTest extends TestCase
         [, $a] = $this->call(self::MECH_A, 'GET', '/api/repairs');
         $this->assertSame($entry['item']['id'], $a['items'][0]['journal_entry_id']);
 
+        // В журнале у записи видно, какую заявку она закрыла
+        [, $journal] = $this->call(self::MECH_A, 'GET', '/api/journal', query: ['lift' => (string) $this->lift['a']]);
+        $this->assertSame('9001н', $journal['items'][0]['repair']['reg']);
+        $this->assertSame('2026-03-31T18:29:01', $journal['items'][0]['repair']['started_at']);
+
         // Чужую заявку механик закрыть не может
         $this->assertSame(404, $this->call(self::MECH_B, 'POST', "/api/repairs/$callId/journal", ['entry_id' => $entry['item']['id']])[0]);
+
+        // Заявка без точного лифта: механик закрывает её записью по своему лифту — лифт запоминается
+        [, $b] = $this->call(self::MECH_B, 'GET', '/api/repairs');
+        $fault = array_values(array_filter($b['items'], static fn (array $i): bool => $i['kind'] === 'fault'))[0];
+        $this->assertNull($fault['lift']);
+        [, $entryB] = $this->call(self::MECH_B, 'POST', '/api/journal', ['lift_id' => $this->lift['b2'], 'codes' => '44 C6', 'title' => 'Заявка: код 44 C6', 'status' => 'resolved']);
+        $this->assertSame(204, $this->call(self::MECH_B, 'POST', "/api/repairs/{$fault['id']}/journal", ['entry_id' => $entryB['item']['id']])[0]);
+        [, $b] = $this->call(self::MECH_B, 'GET', '/api/repairs');
+        foreach ($b['items'] as $item) {
+            $this->assertSame($this->lift['b2'], $item['lift']['id'], 'Номер 1С запомнен у лифта — обе заявки по нему сопоставлены');
+        }
     }
 
     public function testOnlyMasterImportsAndAssigns(): void

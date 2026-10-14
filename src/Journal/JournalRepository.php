@@ -171,9 +171,12 @@ final class JournalRepository
 
         $stmt = $this->pdo->prepare(
             'SELECT j.*, l.address, l.object_name, l.lift_no, l.mechanic_id AS lift_mechanic_id, '
-            . 'lm.name AS lift_mechanic_name, a.name AS author_name '
+            . 'lm.name AS lift_mechanic_name, a.name AS author_name, '
+            // Заявка 1С, которую закрыла эта запись (если есть)
+            . 'rc.id AS repair_id, rc.report_id AS repair_report_id, rc.lift_reg AS repair_reg, rc.started_at AS repair_started_at, rc.kind AS repair_kind '
             . 'FROM journal_entries j JOIN lifts l ON l.id = j.lift_id '
             . 'LEFT JOIN mechanics lm ON lm.id = l.mechanic_id LEFT JOIN mechanics a ON a.id = j.author_id '
+            . 'LEFT JOIN repair_calls rc ON rc.id = (SELECT MIN(x.id) FROM repair_calls x WHERE x.journal_entry_id = j.id) '
             . "WHERE $where ORDER BY j.occurred_at DESC, j.id DESC LIMIT $limit OFFSET $offset"
         );
         $stmt->execute($params);
@@ -299,6 +302,13 @@ final class JournalRepository
             'recommendation' => $r['recommendation'],
             'status' => $r['status'],
             'source' => $r['source'],
+            'repair' => ($r['repair_id'] ?? null) === null ? null : [
+                'id' => (int) $r['repair_id'],
+                'report_id' => (int) $r['repair_report_id'],
+                'reg' => $r['repair_reg'],
+                'started_at' => str_replace(' ', 'T', (string) $r['repair_started_at']),
+                'kind' => $r['repair_kind'],
+            ],
             'created_at' => $r['created_at'],
         ];
     }
