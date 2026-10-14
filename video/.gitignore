@@ -1,0 +1,8 @@
+# Ролик собирается из исходников: зависимости, готовые видео и черновики — не в git
+node_modules/
+out/
+out-render.log
+probe/
+promo/assets/sound-raw.wav
+promo/.hyperframes/
+promo/assets/sound.wav

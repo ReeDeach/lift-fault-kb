@@ -1,0 +1,65 @@
+<!doctype html>
+<html lang="ru" data-resolution="portrait">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=1080, height=1920" />
+    <!-- Шрифты приложения (как в public/assets/css/app.css) -->
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Golos+Text:wght@400;600&family=IBM+Plex+Mono:wght@400;500&family=Jersey+10&family=Unbounded:wght@700;800&display=block" />
+    <script src="https://cdn.jsdelivr.net/npm/gsap@3.14.2/dist/gsap.min.js"></script>
+    <style>
+      * { margin: 0; padding: 0; box-sizing: border-box; }
+      html, body { width: 1080px; height: 1920px; overflow: hidden; background: #f4f1f0; }
+      #stage { position: absolute; inset: 0; width: 1080px; height: 1920px; }
+      #assets { position: absolute; width: 1px; height: 1px; overflow: hidden; opacity: 0; }
+      /* Шрифты загружаются заранее: холст рисует ими с первого кадра */
+      .preload span { position: absolute; opacity: 0; }
+    </style>
+  </head>
+  <body>
+    <div id="root" data-composition-id="main" data-start="0" data-duration="80" data-width="1080" data-height="1920">
+      <audio id="music" src="assets/sound.wav" data-start="0" data-duration="80" data-volume="1"></audio>
+      <canvas id="stage" class="clip" width="1080" height="1920" data-start="0" data-duration="80"></canvas>
+    </div>
+    <div id="assets">
+      <img id="s-ai-answer" src="assets/screens/ai-answer.png" alt="">
+      <img id="s-ai-answer-top" src="assets/screens/ai-answer-top.png" alt="">
+      <img id="s-ai-empty" src="assets/screens/ai-empty.png" alt="">
+      <img id="s-chat" src="assets/screens/chat.png" alt="">
+      <img id="s-codes-44" src="assets/screens/codes-44.png" alt="">
+      <img id="s-codes-44-dark" src="assets/screens/codes-44-dark.png" alt="">
+      <img id="s-codes-empty" src="assets/screens/codes-empty.png" alt="">
+      <img id="s-master-new-call" src="assets/screens/master-new-call.png" alt="">
+      <img id="s-part-accepted" src="assets/screens/part-accepted.png" alt="">
+      <img id="s-part-new" src="assets/screens/part-new.png" alt="">
+      <img id="s-part-ordered" src="assets/screens/part-ordered.png" alt="">
+      <img id="s-part-ready" src="assets/screens/part-ready.png" alt="">
+      <img id="s-repairs-accepted" src="assets/screens/repairs-accepted.png" alt="">
+      <img id="s-repairs-after" src="assets/screens/repairs-after.png" alt="">
+      <img id="s-repairs-close-sheet" src="assets/screens/repairs-close-sheet.png" alt="">
+      <img id="s-repairs-list" src="assets/screens/repairs-list.png" alt="">
+      <img id="s-tabs-unread" src="assets/screens/tabs-unread.png" alt="">
+      <img id="ic-code" src="assets/icons/code.svg" alt="">
+      <img id="ic-chip" src="assets/icons/chip.svg" alt="">
+      <img id="ic-journal" src="assets/icons/journal.svg" alt="">
+      <img id="ic-smile" src="assets/icons/smile.svg" alt="">
+      <img id="ic-box" src="assets/icons/box.svg" alt="">
+      <img id="ic-chat" src="assets/icons/chat.svg" alt="">
+      <img id="ic-settings" src="assets/icons/settings.svg" alt="">
+      <img id="ic-heart" src="assets/icons/heart.svg" alt="">
+      <img id="app-icon" src="assets/img/app-192.png" alt="">
+      <img id="wordmark" src="assets/img/lft-wordmark-light.svg" alt="">
+      <div class="preload"><span style="font:800 20px Unbounded">Аа</span><span style="font:400 20px 'Golos Text'">Аа</span><span style="font:600 20px 'Golos Text'">Аа</span><span style="font:500 20px 'IBM Plex Mono'">Аа</span><span style="font:400 20px 'Jersey 10'">44</span></div>
+    </div>
+    <script src="cues.js"></script>
+    <script src="main.js"></script>
+    <script>
+      // Часы ролика: пустой твин 0→80 с; на каждом кадре рендер вызывает draw(t)
+      const clock = { t: 0 };
+      const tl = gsap.timeline({ paused: true });
+      tl.to(clock, { t: 80, duration: 80, ease: "none", onUpdate: () => window.LFT_DRAW(clock.t) }, 0);
+      window.__timelines = window.__timelines || {};
+      window.__timelines["main"] = tl;
+      tl.seek(0);
+    </script>
+  </body>
+</html>

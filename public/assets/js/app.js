@@ -2066,9 +2066,15 @@
             $el.html('<i></i>в сети только вы').attr('title', '').removeClass('is-on');
             return;
         }
-        var names = $.map(list, function (p) { return p.name; });
+        // Одинаковые имена (два устройства мастера) — один раз
+        var names = [];
+        $.each(list, function (_, p) {
+            if (names.indexOf(p.name) === -1) {
+                names.push(p.name);
+            }
+        });
         $el.addClass('is-on').attr('title', names.join(', '))
-            .html('<i></i>в сети ' + list.length + ': ' + esc(names.slice(0, 3).join(', ')) + (names.length > 3 ? ' и ещё ' + (names.length - 3) : ''));
+            .html('<i></i>в сети ' + names.length + ': ' + esc(names.slice(0, 3).join(', ')) + (names.length > 3 ? ' и ещё ' + (names.length - 3) : ''));
     }
 
     function noteChat(items) {
