@@ -25,6 +25,7 @@ final class RepairsApiTest extends TestCase
     private const MECH_B = 'repairs-b@test.example';
 
     private Router $router;
+    private ?int $reportId = null;
     private PDO $pdo;
     private string $tag;
     private string $street;
@@ -80,9 +81,17 @@ final class RepairsApiTest extends TestCase
      */
     private function call(string $login, string $method, string $path, array $body = [], array $query = []): array
     {
+        // В базе могут быть отчёты новее тестового: список заявок — именно тестового отчёта
+        if ($method === 'GET' && $path === '/api/repairs' && $this->reportId !== null && !isset($query['report'])) {
+            $query['report'] = (string) $this->reportId;
+        }
         $response = $this->router->dispatch(new Request($method, $path, $query, $body, headers: [IdentityResolver::HEADER => $login]));
+        $data = $response->body === '' ? null : json_decode($response->body, true, flags: JSON_THROW_ON_ERROR);
+        if ($path === '/api/repairs/import' && $response->status === 201) {
+            $this->reportId = $data['report_id'];
+        }
 
-        return [$response->status, $response->body === '' ? null : json_decode($response->body, true, flags: JSON_THROW_ON_ERROR)];
+        return [$response->status, $data];
     }
 
     private function report(): string
@@ -104,7 +113,7 @@ final class RepairsApiTest extends TestCase
 
         $reg = $this->pdo->prepare('SELECT reg_number FROM lifts WHERE id = ?');
         $reg->execute([$this->lift['a']]);
-        $this->assertSame('9001н', $reg->fetchColumn(), 'Единственный лифт по адресу — номер запомнен');
+        $this->assertSame('9001', $reg->fetchColumn(), 'Единственный лифт по адресу — номер запомнен (без «н», как в карточках лифтов)');
 
         // Мастер видит все заявки; у несопоставленной — лифты по адресу на выбор
         [, $master] = $this->call(self::MASTER, 'GET', '/api/repairs', query: ['as' => 'master']);

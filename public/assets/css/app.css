@@ -470,6 +470,7 @@ body.app-dd-lock{overflow:hidden}
 .app-liftnos{display:flex;flex-wrap:wrap;gap:8px}
 .app-liftno{position:relative;width:56px;height:56px;background:transparent;border:1px solid var(--line);color:var(--ink);font:400 34px/1 var(--font-pixel);cursor:pointer}
 .app-liftno small{position:absolute;right:3px;top:2px;font:500 10px/1 var(--font-mono);color:var(--muted)}
+.app-liftno em{position:absolute;left:0;right:0;bottom:3px;font:500 10px/1 var(--font-mono);font-style:normal;color:var(--muted)}
 .app-liftno[aria-pressed="true"]{background:var(--accent);border-color:var(--accent);color:var(--on-accent)}
 .app-liftno[aria-pressed="true"] small{color:var(--on-accent)}
 .app-draft{border-top:1px solid var(--line);padding-top:16px}

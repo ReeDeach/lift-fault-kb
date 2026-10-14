@@ -1366,8 +1366,9 @@
         return p.address + (p.object_name ? ' · ' + p.object_name : '');
     }
 
+    // «Московская 245, п. 2, лифт 3» — подъезд из карточек лифтов, если известен
     function liftName(lift) {
-        return lift.address + (lift.object_name ? ' · ' + lift.object_name : '') + ', лифт ' + lift.lift_no;
+        return lift.address + (lift.object_name ? ' · ' + lift.object_name : '') + (lift.entrance ? ', п. ' + lift.entrance : '') + ', лифт ' + lift.lift_no;
     }
 
     function formatDateTime(value) {
@@ -1587,8 +1588,10 @@
         $('#save-places .app-pick-row').attr('aria-pressed', 'false');
         var html = '<span class="lft-label">3 · Лифт на адресе ' + esc(placeName(place)) + '</span><div class="app-liftnos">';
         $.each(place.lifts, function (_, l) {
-            html += '<button type="button" class="app-liftno" data-save-lift="' + l.id + '" aria-pressed="false">' + l.lift_no
-                + (l.entries ? '<small>' + l.entries + '</small>' : '') + '</button>';
+            // Под номером — подъезд; модель и этажность — в подсказке
+            var info = $.grep([l.entrance ? 'подъезд ' + l.entrance : '', l.equipment || '', l.floors ? l.floors + ' эт.' : '', l.reg_number ? '№ ' + l.reg_number : ''], Boolean).join(' · ');
+            html += '<button type="button" class="app-liftno" data-save-lift="' + l.id + '" aria-pressed="false"' + (info ? ' title="' + esc(info) + '"' : '') + '>' + l.lift_no
+                + (l.entries ? '<small>' + l.entries + '</small>' : '') + (l.entrance ? '<em>п.' + esc(l.entrance) + '</em>' : '') + '</button>';
         });
         $('#save-lift').html(html + '</div>');
         if (place.lifts.length === 1) {
@@ -2272,7 +2275,7 @@
                 }
                 $.each(p.lifts, function (_, l) {
                     html += '<option value="' + Number(l.id) + '">'
-                        + esc(liftName({ address: p.address, object_name: p.object_name, lift_no: l.lift_no })) + '</option>';
+                        + esc(liftName({ address: p.address, object_name: p.object_name, lift_no: l.lift_no, entrance: l.entrance })) + '</option>';
                 });
             });
             $('#req-lift').html(html).trigger('lft:refresh');
@@ -2494,7 +2497,7 @@
     }
 
     function liftLabel(lift) {
-        return liftName({ address: lift.address, object_name: lift.object_name, lift_no: lift.lift_no });
+        return liftName({ address: lift.address, object_name: lift.object_name, lift_no: lift.lift_no, entrance: lift.entrance });
     }
 
     function repairCardHtml(r, master) {
@@ -3098,7 +3101,7 @@
                 }
                 $.each(p.lifts, function (_, l) {
                     html += '<option value="' + Number(l.id) + '">'
-                        + esc(liftName({ address: p.address, object_name: p.object_name, lift_no: l.lift_no })) + '</option>';
+                        + esc(liftName({ address: p.address, object_name: p.object_name, lift_no: l.lift_no, entrance: l.entrance })) + '</option>';
                 });
             });
             $('#rep-new-lift').html(html + (group !== null ? '</optgroup>' : '')).each(function () {

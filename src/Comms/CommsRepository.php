@@ -370,7 +370,7 @@ final class CommsRepository
     {
         return 'SELECT r.id, r.title, r.quantity, r.urgent, r.status, r.created_at, r.updated_at, '
             . 'me.id AS author_id, me.name AS author_name, me.section AS author_section, '
-            . 'l.id AS lift_id, l.address, l.object_name, l.lift_no, '
+            . 'l.id AS lift_id, l.address, l.object_name, l.lift_no, l.entrance, '
             . '(SELECT COUNT(*) FROM messages x WHERE x.request_id = r.id) AS messages_count, '
             . '(SELECT COUNT(*) FROM attachments a JOIN messages x ON x.id = a.message_id WHERE x.request_id = r.id) AS photos_count, '
             . '(SELECT x.body FROM messages x WHERE x.request_id = r.id AND x.body IS NOT NULL ORDER BY x.id DESC LIMIT 1) AS last_body, '
@@ -395,6 +395,7 @@ final class CommsRepository
             'author' => ['id' => (int) $r['author_id'], 'name' => $r['author_name'], 'section' => $r['author_section']],
             'lift' => $r['lift_id'] === null ? null : [
                 'id' => (int) $r['lift_id'], 'address' => $r['address'], 'object_name' => $r['object_name'], 'lift_no' => (int) $r['lift_no'],
+                'entrance' => $r['entrance'],
             ],
             'messages_count' => (int) $r['messages_count'],
             'photos_count' => (int) $r['photos_count'],

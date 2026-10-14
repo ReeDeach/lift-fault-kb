@@ -71,7 +71,7 @@ final class JournalRepository
      */
     public function lifts(?int $mechanicId): array
     {
-        $sql = 'SELECT l.id, l.address, l.object_name, l.lift_no, l.reg_number, l.notes, l.mechanic_id, '
+        $sql = 'SELECT l.id, l.address, l.object_name, l.lift_no, l.entrance, l.equipment, l.floors, l.reg_number, l.notes, l.mechanic_id, '
             . 'mo.id AS model_id, mo.name AS model_name, '
             . '(SELECT COUNT(*) FROM journal_entries j WHERE j.lift_id = l.id) AS entries, '
             . '(SELECT MAX(j.occurred_at) FROM journal_entries j WHERE j.lift_id = l.id) AS last_entry '
@@ -81,7 +81,7 @@ final class JournalRepository
             $sql .= ' WHERE l.mechanic_id = ?';
             $params[] = $mechanicId;
         }
-        $stmt = $this->pdo->prepare($sql . ' ORDER BY l.mechanic_id, l.address, l.object_name, l.lift_no');
+        $stmt = $this->pdo->prepare($sql . ' ORDER BY l.mechanic_id, l.address, l.object_name, CAST(l.entrance AS UNSIGNED), l.lift_no');
         $stmt->execute($params);
 
         $places = [];
@@ -96,6 +96,10 @@ final class JournalRepository
             $places[$key]['lifts'][] = [
                 'id' => (int) $r['id'],
                 'lift_no' => (int) $r['lift_no'],
+                // Из карточек лифтов: подъезд, модель (П-400-1,0), этажность
+                'entrance' => $r['entrance'],
+                'equipment' => $r['equipment'],
+                'floors' => $r['floors'] === null ? null : (int) $r['floors'],
                 'reg_number' => $r['reg_number'],
                 'notes' => $r['notes'],
                 'model' => $r['model_id'] === null ? null : ['id' => (int) $r['model_id'], 'name' => $r['model_name']],
@@ -170,7 +174,7 @@ final class JournalRepository
         $count->execute($params);
 
         $stmt = $this->pdo->prepare(
-            'SELECT j.*, l.address, l.object_name, l.lift_no, l.mechanic_id AS lift_mechanic_id, '
+            'SELECT j.*, l.address, l.object_name, l.lift_no, l.entrance, l.mechanic_id AS lift_mechanic_id, '
             . 'lm.name AS lift_mechanic_name, a.name AS author_name, '
             // Заявка 1С, которую закрыла эта запись (если есть)
             . 'rc.id AS repair_id, rc.report_id AS repair_report_id, rc.lift_reg AS repair_reg, rc.started_at AS repair_started_at, rc.kind AS repair_kind '
@@ -291,6 +295,7 @@ final class JournalRepository
                 'address' => $r['address'],
                 'object_name' => $r['object_name'] !== '' ? $r['object_name'] : null,
                 'lift_no' => (int) $r['lift_no'],
+                'entrance' => $r['entrance'],
                 'mechanic' => $r['lift_mechanic_id'] === null ? null : ['id' => (int) $r['lift_mechanic_id'], 'name' => $r['lift_mechanic_name']],
             ],
             'author' => $r['author_id'] === null ? null : ['id' => (int) $r['author_id'], 'name' => $r['author_name']],

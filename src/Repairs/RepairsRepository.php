@@ -61,7 +61,7 @@ final class RepairsRepository
             foreach ($report['rows'] as $row) {
                 $lift = $this->findLift($lifts, $row['reg'], $row['address']);
                 if ($lift !== null && $lift['by'] === 'address') {
-                    $learn->execute([$row['reg'], $lift['id']]);
+                    $learn->execute([self::canonicalReg($row['reg']), $lift['id']]);
                     $lift['reg'] = $row['reg'];
                     $lifts['reg'][self::regKey($row['reg'])] = $lift;
                     foreach ($lifts['address'][self::addressKey($row['address'])] as &$same) {
@@ -189,7 +189,7 @@ final class RepairsRepository
             $params[] = $me;
         }
         $stmt = $this->pdo->prepare(
-            'SELECT c.*, l.address AS lift_address, l.object_name, l.lift_no, COALESCE(l.mechanic_id, c.mechanic_id) AS owner_id, m.name AS mechanic_name '
+            'SELECT c.*, l.address AS lift_address, l.object_name, l.lift_no, l.entrance, COALESCE(l.mechanic_id, c.mechanic_id) AS owner_id, m.name AS mechanic_name '
             . 'FROM repair_calls c LEFT JOIN lifts l ON l.id = c.lift_id LEFT JOIN mechanics m ON m.id = COALESCE(l.mechanic_id, c.mechanic_id) '
             . "WHERE $where ORDER BY (c.finished_at IS NULL) DESC, c.started_at DESC"
         );
@@ -220,6 +220,7 @@ final class RepairsRepository
                     'address' => $r['lift_address'],
                     'object_name' => $r['object_name'] !== '' ? $r['object_name'] : null,
                     'lift_no' => (int) $r['lift_no'],
+                    'entrance' => $r['entrance'],
                     'mechanic' => $r['mechanic_name'],
                 ],
                 // Чья заявка: механик лифта или (лифт не уточнён) механик всех лифтов дома
@@ -235,7 +236,7 @@ final class RepairsRepository
                 );
                 $item['candidates'] = array_values(array_map(static fn (array $l): array => [
                     'id' => $l['id'], 'address' => $l['address'], 'object_name' => $l['object_name'],
-                    'lift_no' => $l['lift_no'], 'mechanic' => $l['mechanic'], 'reg' => $l['reg'] !== '' ? $l['reg'] : null,
+                    'lift_no' => $l['lift_no'], 'entrance' => $l['entrance'], 'mechanic' => $l['mechanic'], 'reg' => $l['reg'] !== '' ? $l['reg'] : null,
                 ], $lifts));
             }
 
@@ -270,8 +271,9 @@ final class RepairsRepository
         $this->pdo->beginTransaction();
         try {
             // Номер мог быть ошибочно записан у другого лифта — снимаем его там
-            $this->pdo->prepare('UPDATE lifts SET reg_number = NULL WHERE reg_number = ? AND id <> ?')->execute([$reg, $liftId]);
-            $this->pdo->prepare('UPDATE lifts SET reg_number = ? WHERE id = ?')->execute([$reg, $liftId]);
+            $canonical = self::canonicalReg($reg);
+            $this->pdo->prepare('UPDATE lifts SET reg_number = NULL WHERE reg_number IN (?, ?) AND id <> ?')->execute([$canonical, $reg, $liftId]);
+            $this->pdo->prepare('UPDATE lifts SET reg_number = ? WHERE id = ?')->execute([$canonical, $liftId]);
             $this->pdo->prepare('UPDATE repair_calls SET lift_id = ?, mechanic_id = ? WHERE lift_reg = ?')->execute([$liftId, $owner, $reg]);
             $this->pdo->commit();
         } catch (\Throwable $e) {
@@ -328,9 +330,17 @@ final class RepairsRepository
         return $m[1] . ' ' . rtrim($m[2], '/');
     }
 
+    /**
+     * Номер лифта без пробелов и буквы «н» в конце: в 1С «2508н», в карточках лифтов «2508».
+     */
+    public static function canonicalReg(string $reg): string
+    {
+        return mb_strtoupper((string) preg_replace('/[нН]$/u', '', (string) preg_replace('/\s+/u', '', $reg)));
+    }
+
     private static function regKey(string $reg): string
     {
-        return mb_strtolower(preg_replace('/\s+/u', '', $reg));
+        return self::canonicalReg($reg);
     }
 
     /**
@@ -339,7 +349,7 @@ final class RepairsRepository
     private function liftIndex(): array
     {
         $rows = $this->pdo->query(
-            'SELECT l.id, l.address, l.object_name, l.lift_no, l.reg_number, l.mechanic_id, m.name AS mechanic '
+            'SELECT l.id, l.address, l.object_name, l.lift_no, l.entrance, l.reg_number, l.mechanic_id, m.name AS mechanic '
             . 'FROM lifts l LEFT JOIN mechanics m ON m.id = l.mechanic_id ORDER BY l.address, l.lift_no'
         )->fetchAll(PDO::FETCH_ASSOC);
 
@@ -347,7 +357,7 @@ final class RepairsRepository
         foreach ($rows as $r) {
             $lift = [
                 'id' => (int) $r['id'], 'address' => $r['address'], 'object_name' => $r['object_name'] !== '' ? $r['object_name'] : null,
-                'lift_no' => (int) $r['lift_no'], 'mechanic_id' => $r['mechanic_id'] === null ? null : (int) $r['mechanic_id'],
+                'lift_no' => (int) $r['lift_no'], 'entrance' => $r['entrance'], 'mechanic_id' => $r['mechanic_id'] === null ? null : (int) $r['mechanic_id'],
                 'mechanic' => $r['mechanic'], 'reg' => $r['reg_number'] ?? '',
             ];
             if ($r['reg_number'] !== null && $r['reg_number'] !== '') {
