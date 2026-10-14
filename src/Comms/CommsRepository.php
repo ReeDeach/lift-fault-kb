@@ -118,9 +118,9 @@ final class CommsRepository
      *
      * @return list<array<string, mixed>>
      */
-    public function requests(Identity $who, bool $all, bool $openOnly): array
+    public function requests(Identity $who, bool $all, bool $openOnly, bool $brigade = false): array
     {
-        [$where, $params] = $this->requestScope($who, $all);
+        [$where, $params] = $this->requestScope($who, $all, $brigade);
         if ($openOnly) {
             $where .= " AND r.status IN ('" . implode("','", self::OPEN) . "')";
         }
@@ -131,13 +131,14 @@ final class CommsRepository
     }
 
     /**
-     * Заявка с перепиской. Чужая для механика — 404, как и несуществующая.
+     * Заявка с перепиской. Смотреть можно любую заявку бригады; писать в неё — автору и мастеру
+     * (проверка в postToRequest).
      *
      * @return array<string, mixed>
      */
     public function request(Identity $who, int $id, bool $all): array
     {
-        [$where, $params] = $this->requestScope($who, $all);
+        [$where, $params] = $this->requestScope($who, $all, true);
         $stmt = $this->pdo->prepare($this->requestSelect() . " WHERE $where AND r.id = ?");
         $stmt->execute([...$params, $id]);
         $row = $stmt->fetch(PDO::FETCH_ASSOC);
@@ -425,7 +426,7 @@ final class CommsRepository
     /**
      * @return array{string, list<int>}
      */
-    private function requestScope(Identity $who, bool $all): array
+    private function requestScope(Identity $who, bool $all, bool $brigade = false): array
     {
         if ($all) {
             if (!$who->isMaster) {
@@ -436,7 +437,8 @@ final class CommsRepository
         }
         $me = $who->mechanicId() ?? throw new HttpException(403, 'Войдите как механик');
 
-        return ['r.author_id = ?', [$me]];
+        // Механик видит и заявки бригады (кто что заказал), но пишет только в свои
+        return $brigade ? ['1 = 1', []] : ['r.author_id = ?', [$me]];
     }
 
     private function requestSelect(): string

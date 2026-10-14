@@ -223,19 +223,21 @@ final class CommsApiTest extends TestCase
         $this->assertSame(1, $request['photos_count']);
         $this->assertSame('Подгорел, лифт стоит', $request['messages'][0]['body']);
 
-        // Другой механик заявку не видит, мастер видит
-        $this->assertSame(404, $this->call(self::MECH_B, 'GET', "/api/requests/$id")[0]);
+        // Другой механик видит её в заявках бригады (не в «моих»), мастер — у себя
+        $this->assertSame(200, $this->call(self::MECH_B, 'GET', "/api/requests/$id")[0]);
         $this->assertNotContains($id, array_column($this->call(self::MECH_B, 'GET', '/api/requests')[1]['items'], 'id'));
+        $this->assertContains($id, array_column($this->call(self::MECH_B, 'GET', '/api/requests', query: ['scope' => 'all'])[1]['items'], 'id'));
         $this->assertSame(403, $this->call(self::MECH_B, 'GET', '/api/requests', query: ['as' => 'master'])[0]);
         $this->assertContains($id, array_column($this->call(self::MASTER, 'GET', '/api/requests', query: ['as' => 'master', 'open' => '1'])[1]['items'], 'id'));
 
-        // Фото заявки — только автору и мастеру
-        $this->assertSame(404, $this->send(self::MECH_B, 'GET', $photo['url'])->status);
+        // Фото заявки видит бригада, но не посторонний (без привязки к механику)
+        $this->assertSame(200, $this->send(self::MECH_B, 'GET', $photo['url'])->status);
+        $this->assertSame(404, $this->send(self::STRANGER, 'GET', $photo['url'])->status);
         $this->assertSame(200, $this->send(self::MASTER, 'GET', $photo['url'])->status);
 
         // Статус меняет мастер
         $this->assertSame(403, $this->call(self::MECH_A, 'POST', "/api/requests/$id/messages", ['status' => 'ordered'])[0]);
-        $this->assertSame(404, $this->call(self::MECH_B, 'POST', "/api/requests/$id/messages", ['body' => 'Мне тоже'])[0]);
+        $this->assertSame(403, $this->call(self::MECH_B, 'POST', "/api/requests/$id/messages", ['body' => 'Мне тоже'])[0], 'Писать в чужую заявку нельзя');
         [$s, $ordered] = $this->call(self::MASTER, 'POST', "/api/requests/$id/messages", ['as' => 'master', 'status' => 'ordered', 'body' => 'Заказал, будет в четверг']);
         $this->assertSame(201, $s);
         $this->assertSame('ordered', $ordered['item']['status']);

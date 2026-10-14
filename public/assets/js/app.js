@@ -275,8 +275,15 @@
             html += '<div class="lft-window__bar"><span class="lft-label">' + esc(title) + '</span>'
                 + '<button type="button" class="lft-window__x app-dd-close" aria-label="Закрыть">×</button></div>';
         }
+        // Длинный список (лифты, модели) — с поиском сверху
+        var searchable = $select.find('option').length > 12;
+        if (searchable) {
+            html += '<label class="app-dd-search">' + icon('search', 'lft-icon--12')
+                + '<input type="search" autocomplete="off" placeholder="Поиск: улица, дом, номер" aria-label="Поиск в списке"></label>';
+        }
         function optionHtml($o, grouped) {
-            var out = '<button type="button" class="app-dd-opt" role="option" aria-selected="' + $o.is(':selected') + '" data-value="' + esc($o.val()) + '">';
+            var out = '<button type="button" class="app-dd-opt" role="option" aria-selected="' + $o.is(':selected') + '" data-value="' + esc($o.val()) + '"'
+                + ' data-search="' + esc(searchText($o.text() + ' ' + ($o.closest('optgroup').attr('label') || ''))) + '">';
             if ($o.data('name')) {
                 // В группе производитель уже в заголовке
                 out += (grouped ? '' : '<span class="lft-label">' + esc($o.data('maker')) + '</span>')
@@ -306,7 +313,33 @@
             $btn.closest('.app-select').append($dd);
         }
         $btn.attr('aria-expanded', 'true');
-        ($dd.find('[aria-selected="true"]')[0] || $dd.find('.app-dd-opt')[0]).focus();
+        if (searchable && !sheet) {
+            $dd.find('.app-dd-search input').trigger('focus');
+        } else {
+            ($dd.find('[aria-selected="true"]')[0] || $dd.find('.app-dd-opt')[0]).focus();
+        }
+    }
+
+    // Текст для поиска: строчные, «ё» как «е», без точек и запятых («Я.Купалы 13/1» → «я купалы 13/1»)
+    function searchText(s) {
+        return $.trim(String(s).toLowerCase().replace(/ё/g, 'е').replace(/[^0-9a-zа-я\/]+/g, ' '));
+    }
+
+    function filterDropdown($dd, query) {
+        var words = searchText(query).split(' ').filter(Boolean);
+        $dd.find('.app-dd-opt').each(function () {
+            var text = $(this).attr('data-search') || '';
+            $(this).prop('hidden', !words.every(function (w) { return text.indexOf(w) !== -1; }));
+        });
+        // Заголовок группы — только если в ней что-то осталось
+        $dd.find('.app-dd-group').each(function () {
+            var any = $(this).nextUntil('.app-dd-group', '.app-dd-opt').filter(function () { return !this.hidden; }).length;
+            $(this).prop('hidden', !any);
+        });
+        $dd.find('.app-dd-empty').remove();
+        if (!$dd.find('.app-dd-opt').filter(function () { return !this.hidden; }).length) {
+            $dd.append('<p class="app-dd-empty app-hint">Ничего не нашлось</p>');
+        }
     }
 
     // ---------- Экран «Коды» ----------
@@ -2091,7 +2124,8 @@
 
     function requestCardHtml(r, master) {
         var meta = [];
-        if (master) {
+        var mine = !master && session.me.mechanic && r.author.id === session.me.mechanic.id;
+        if (master || (!mine && requestsScope === 'all')) {
             meta.push(esc(r.author.name) + (r.author.section ? ' · ' + esc(r.author.section) : ''));
         }
         if (r.lift) {
@@ -2109,14 +2143,17 @@
             + '</a></li>';
     }
 
+    var requestsScope = 'mine';
+
     function renderRequestList(params, token) {
         var master = isMaster();
         var open = master && params.all !== '1';
+        requestsScope = !master && params.scope === 'all' ? 'all' : 'mine';
         $view.html(
             '<div class="app-pad app-req-page">'
             + reqSwitchHtml('requests')
             + '<div class="app-req-head"><div><p class="lft-label">' + icon('box', 'lft-icon--12') + ' Заявки на запчасти</p>'
-            + '<p class="fp-title">' + (master ? 'Заявки механиков' : 'Мои заявки') + '</p></div>'
+            + '<p class="fp-title">' + (master ? 'Заявки механиков' : (requestsScope === 'all' ? 'Заявки бригады' : 'Мои заявки')) + '</p></div>'
             + (master ? '' : '<a class="lft-btn" href="' + hashFor('requests', { new: 1 }) + '">' + icon('box') + 'Новая заявка</a>')
             + '</div>'
             + (master ? '<div class="app-types app-journal-tabs" role="tablist">'
@@ -2126,9 +2163,19 @@
             + '</div>'
         );
 
-        api('/api/requests', { as: asRole(), open: open ? 1 : undefined }).then(function (data) {
+        // Механик получает заявки всей бригады, «Мои» отбираются на месте
+        api('/api/requests', { as: asRole(), open: open ? 1 : undefined, scope: master ? undefined : 'all' }).then(function (data) {
             if (token !== renderToken) {
                 return;
+            }
+            var me = session.me.mechanic ? session.me.mechanic.id : null;
+            var mineItems = master ? data.items : $.grep(data.items, function (r) { return r.author.id === me; });
+            if (!master) {
+                $('#req-list').before('<div class="app-types app-journal-tabs app-rep-scope" role="tablist" aria-label="Чьи заявки">'
+                    + '<a class="fp-chip app-type" aria-pressed="' + (requestsScope === 'mine') + '" href="' + hashFor('requests', {}) + '">' + icon('settings', 'lft-icon--12') + 'Мои · ' + mineItems.length + '</a>'
+                    + '<a class="fp-chip app-type" aria-pressed="' + (requestsScope === 'all') + '" href="' + hashFor('requests', { scope: 'all' }) + '">' + icon('building', 'lft-icon--12') + 'Бригада · ' + data.items.length + '</a></div>');
+                markRequestsSeen(mineItems);
+                data.items = requestsScope === 'all' ? data.items : mineItems;
             }
             if (!data.items.length) {
                 $('#req-list').html('<p class="app-empty">' + (master
@@ -2141,7 +2188,9 @@
                 html += requestCardHtml(r, master);
             });
             $('#req-list').html(html + '</ul>');
-            markRequestsSeen(data.items);
+            if (master) {
+                markRequestsSeen(data.items);
+            }
         }, function (error) {
             $('#req-list').html(errorWindow(error, 'Заявки'));
         });
@@ -2225,8 +2274,10 @@
             }
             $('#req-compose').html(composerHtml('req', master ? 'Ответ механику' : 'Сообщение мастеру', extra));
             $('#req-compose form').data('request', r.id);
+            markRequestsSeen([r]);
+        } else {
+            $('#req-compose').html('<p class="app-hint app-req-readonly">Заявка ' + esc(r.author.name) + '. Писать в неё может автор и мастер.</p>');
         }
-        markRequestsSeen([r]);
     }
 
     // Новое в переписке: заявка перерисовывается (статус и кнопки тоже могли поменяться),
@@ -3035,8 +3086,11 @@
                 closeDropdown(false);
             }
         })
+        .on('input', '.app-dd-search input', function () {
+            filterDropdown($(this).closest('.app-dd'), this.value);
+        })
         .on('keydown', '.app-dd', function (e) {
-            var $opts = $(this).find('.app-dd-opt');
+            var $opts = $(this).find('.app-dd-opt').filter(function () { return !this.hidden; });
             var i = $opts.index(document.activeElement);
             if (e.key === 'Escape') {
                 e.preventDefault();

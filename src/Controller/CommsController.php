@@ -22,7 +22,7 @@ use App\Push\Notifier;
  *   GET  /api/chat?after=&before=         общий чат
  *   POST /api/chat                        {body, photos: [id], as}
  *   POST /api/chat/{id}/like              {as} — поставить или снять лайк
- *   GET  /api/requests?as=master&open=1   заявки на запчасти
+ *   GET  /api/requests?as=master&open=1   заявки на запчасти; механику scope=all — заявки всей бригады
  *   POST /api/requests                    {title, quantity, urgent, lift_id, body, photos}
  *   GET  /api/requests/{id}?as=master
  *   POST /api/requests/{id}/messages      {body, photos, status, as}
@@ -56,7 +56,7 @@ final class CommsController
     }
 
     /**
-     * Фото отдаётся тому, кто может видеть сообщение: чат — всем, заявка — автору и мастеру.
+     * Фото отдаётся тому, кто может видеть сообщение: чат и заявки бригады — всем механикам и мастеру.
      * В демо картинка грузится обычным <img> без демо-заголовков, поэтому там хватает
      * случайного токена в адресе (данные демо вымышлены).
      */
@@ -74,7 +74,7 @@ final class CommsController
         }
         if ($who !== null && !$this->auth->isDemo()) {
             $allowed = $info['uploader_login'] === $who->login
-                || ($info['message_id'] !== null && (!$info['in_request'] || $who->isMaster || $info['request_author'] === $who->mechanicId()));
+                || ($info['message_id'] !== null && (!$info['in_request'] || $who->isMaster || $who->mechanicId() !== null));
             if (!$allowed) {
                 throw new HttpException(404, 'Фото не найдено');
             }
@@ -139,6 +139,7 @@ final class CommsController
             $who,
             $this->asMaster($who, $request->queryString('as')),
             $request->queryString('open') === '1',
+            $request->queryString('scope') === 'all',
         )]);
     }
 

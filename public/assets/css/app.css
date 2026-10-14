@@ -935,3 +935,9 @@ img.app-logo-light,.app-logo img.app-logo-light{display:none}
 /* «Принял» на заявке */
 .app-rep-accepted{display:flex;align-items:center;gap:6px;margin:0;color:var(--accent)}
 .app-rep-accept{justify-self:start}
+/* Поиск в длинном выпадающем списке (лифты) */
+.app-dd-search{position:sticky;top:0;z-index:1;display:flex;align-items:center;gap:8px;padding:8px 12px;background:var(--surface);border-bottom:1px solid var(--line-faint)}
+.app-dd--sheet .app-dd-search{top:0}
+.app-dd-search input{flex:1;min-width:0;border:0;background:transparent;color:var(--ink);font:400 15px/24px var(--font-sans);outline:0}
+.app-dd-opt[hidden],.app-dd-group[hidden]{display:none}
+.app-dd-empty{margin:0;padding:14px}
