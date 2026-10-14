@@ -48,11 +48,11 @@ final class RepairsRepository
             $reportId = (int) $this->pdo->lastInsertId();
 
             $insert = $this->pdo->prepare(
-                'INSERT INTO repair_calls (report_id, lift_reg, address, floor, started_at, finished_at, stopped, stops_30d, info, codes, kind, lift_id) '
-                . 'VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) AS new ON DUPLICATE KEY UPDATE '
+                'INSERT INTO repair_calls (report_id, lift_reg, address, floor, started_at, finished_at, stopped, stops_30d, info, codes, kind, lift_id, mechanic_id) '
+                . 'VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) AS new ON DUPLICATE KEY UPDATE '
                 . 'report_id = new.report_id, address = new.address, floor = new.floor, finished_at = new.finished_at, stopped = new.stopped, '
                 . 'stops_30d = new.stops_30d, info = new.info, codes = new.codes, kind = new.kind, '
-                . 'lift_id = COALESCE(repair_calls.lift_id, new.lift_id)'
+                . 'lift_id = COALESCE(repair_calls.lift_id, new.lift_id), mechanic_id = COALESCE(new.mechanic_id, repair_calls.mechanic_id)'
             );
             $learn = $this->pdo->prepare('UPDATE lifts SET reg_number = ? WHERE id = ? AND (reg_number IS NULL OR reg_number = \'\')');
 
@@ -70,11 +70,12 @@ final class RepairsRepository
                     }
                     unset($same);
                 }
+                $mechanicId = $lift !== null ? $lift['mechanic_id'] : self::addressMechanic($lifts, $row['address']);
                 $insert->execute([
                     $reportId, $row['reg'], $row['address'], $row['floor'],
                     $row['started_at']->format('Y-m-d H:i:s'), $row['finished_at']?->format('Y-m-d H:i:s'),
                     (int) $row['stopped'], $row['stops_30d'], $row['info'],
-                    $row['codes'] === [] ? null : implode(' ', $row['codes']), $row['kind'], $lift['id'] ?? null,
+                    $row['codes'] === [] ? null : implode(' ', $row['codes']), $row['kind'], $lift['id'] ?? null, $mechanicId,
                 ]);
                 // 1 — новая строка, 2 или 0 — заявка уже была в загруженном раньше отчёте
                 $isNew = $insert->rowCount() === 1;
@@ -82,8 +83,8 @@ final class RepairsRepository
                 $summary[$lift === null ? 'unmatched' : 'matched']++;
                 if ($row['kind'] === 'fault') {
                     $summary['faults']++;
-                    if ($isNew && $lift !== null && $lift['mechanic_id'] !== null) {
-                        $summary['by_mechanic'][$lift['mechanic_id']][] = [
+                    if ($isNew && $mechanicId !== null) {
+                        $summary['by_mechanic'][$mechanicId][] = [
                             'address' => $row['address'],
                             'codes' => implode(' ', $row['codes']),
                             'info' => $row['info'],
@@ -124,7 +125,8 @@ final class RepairsRepository
     }
 
     /**
-     * Заявки одного отчёта. Механик видит заявки по своим лифтам, мастер — все.
+     * Заявки одного отчёта. Мастер видит все, механик — по своим лифтам, в том числе ещё
+     * не определённым точно (по адресу несколько лифтов, но все его): лифт он выбирает сам.
      *
      * @return list<array<string, mixed>>
      */
@@ -134,7 +136,7 @@ final class RepairsRepository
         $params = [$reportId];
         if (!$asMaster) {
             $me = $who->mechanicId() ?? throw new HttpException(403, 'Войдите как механик');
-            $where .= ' AND l.mechanic_id = ?';
+            $where .= ' AND COALESCE(l.mechanic_id, c.mechanic_id) = ?';
             $params[] = $me;
         }
         $stmt = $this->pdo->prepare(
@@ -145,9 +147,10 @@ final class RepairsRepository
         $stmt->execute($params);
         $rows = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
-        $index = $asMaster ? $this->liftIndex() : null;
+        $index = $this->liftIndex();
+        $me = $asMaster ? null : $who->mechanicId();
 
-        return array_map(function (array $r) use ($index): array {
+        return array_map(function (array $r) use ($index, $me): array {
             $item = [
                 'id' => (int) $r['id'],
                 'reg' => $r['lift_reg'],
@@ -170,11 +173,16 @@ final class RepairsRepository
                 ],
                 'candidates' => [],
             ];
-            if ($r['lift_id'] === null && $index !== null) {
-                $item['candidates'] = array_map(static fn (array $l): array => [
+            if ($r['lift_id'] === null) {
+                // Механику — только его лифты по адресу
+                $lifts = array_filter(
+                    $index['address'][self::addressKey((string) $r['address'])] ?? [],
+                    static fn (array $l): bool => $me === null || $l['mechanic_id'] === $me,
+                );
+                $item['candidates'] = array_values(array_map(static fn (array $l): array => [
                     'id' => $l['id'], 'address' => $l['address'], 'object_name' => $l['object_name'],
                     'lift_no' => $l['lift_no'], 'mechanic' => $l['mechanic'], 'reg' => $l['reg'] !== '' ? $l['reg'] : null,
-                ], $index['address'][self::addressKey((string) $r['address'])] ?? []);
+                ], $lifts));
             }
 
             return $item;
@@ -182,21 +190,27 @@ final class RepairsRepository
     }
 
     /**
-     * Мастер указывает лифт заявки: номер из 1С запоминается у лифта, и все заявки
-     * с этим номером (прошлые и будущие) сопоставляются сами.
+     * Указать лифт заявки: номер из 1С запоминается у лифта, и все заявки с этим номером
+     * (прошлые и будущие) сопоставляются сами. Мастер выбирает любой лифт, механик — свой
+     * и только в своей заявке.
      */
-    public function assignLift(int $callId, int $liftId): void
+    public function assignLift(Identity $who, bool $asMaster, int $callId, int $liftId): void
     {
-        $stmt = $this->pdo->prepare('SELECT lift_reg FROM repair_calls WHERE id = ?');
+        $stmt = $this->pdo->prepare(
+            'SELECT c.lift_reg, COALESCE(l.mechanic_id, c.mechanic_id) AS mechanic_id FROM repair_calls c LEFT JOIN lifts l ON l.id = c.lift_id WHERE c.id = ?'
+        );
         $stmt->execute([$callId]);
-        $reg = $stmt->fetchColumn();
-        if ($reg === false) {
+        $call = $stmt->fetch(PDO::FETCH_ASSOC);
+        $me = $asMaster ? null : ($who->mechanicId() ?? throw new HttpException(403, 'Войдите как механик или мастер'));
+        if ($call === false || ($me !== null && (int) $call['mechanic_id'] !== $me)) {
             throw new HttpException(404, 'Заявка не найдена');
         }
-        $stmt = $this->pdo->prepare('SELECT id FROM lifts WHERE id = ?');
+        $reg = $call['lift_reg'];
+        $stmt = $this->pdo->prepare('SELECT mechanic_id FROM lifts WHERE id = ?');
         $stmt->execute([$liftId]);
-        if ($stmt->fetchColumn() === false) {
-            throw new HttpException(400, 'Ошибка в данных', ['lift_id' => 'Такого лифта нет']);
+        $owner = $stmt->fetchColumn();
+        if ($owner === false || ($me !== null && (int) $owner !== $me)) {
+            throw new HttpException(400, 'Ошибка в данных', ['lift_id' => $owner === false ? 'Такого лифта нет' : 'Это не ваш лифт: чужой лифт указывает мастер']);
         }
 
         $this->pdo->beginTransaction();
@@ -204,7 +218,7 @@ final class RepairsRepository
             // Номер мог быть ошибочно записан у другого лифта — снимаем его там
             $this->pdo->prepare('UPDATE lifts SET reg_number = NULL WHERE reg_number = ? AND id <> ?')->execute([$reg, $liftId]);
             $this->pdo->prepare('UPDATE lifts SET reg_number = ? WHERE id = ?')->execute([$reg, $liftId]);
-            $this->pdo->prepare('UPDATE repair_calls SET lift_id = ? WHERE lift_reg = ?')->execute([$liftId, $reg]);
+            $this->pdo->prepare('UPDATE repair_calls SET lift_id = ?, mechanic_id = ? WHERE lift_reg = ?')->execute([$liftId, $owner, $reg]);
             $this->pdo->commit();
         } catch (\Throwable $e) {
             $this->pdo->rollBack();
@@ -218,7 +232,7 @@ final class RepairsRepository
     public function linkJournal(Identity $who, bool $asMaster, int $callId, int $entryId): void
     {
         $stmt = $this->pdo->prepare(
-            'SELECT c.lift_id, l.mechanic_id FROM repair_calls c LEFT JOIN lifts l ON l.id = c.lift_id WHERE c.id = ?'
+            'SELECT c.lift_id, COALESCE(l.mechanic_id, c.mechanic_id) AS mechanic_id FROM repair_calls c LEFT JOIN lifts l ON l.id = c.lift_id WHERE c.id = ?'
         );
         $stmt->execute([$callId]);
         $call = $stmt->fetch(PDO::FETCH_ASSOC);
@@ -300,6 +314,18 @@ final class RepairsRepository
         ));
 
         return count($free) === 1 ? $free[0] + ['by' => 'address'] : null;
+    }
+
+    /**
+     * Механик по адресу, если все лифты этого дома у него. Иначе null — решает мастер.
+     *
+     * @param array{reg: array<string, array<string, mixed>>, address: array<string, list<array<string, mixed>>>} $index
+     */
+    private static function addressMechanic(array $index, string $address): ?int
+    {
+        $mechanics = array_unique(array_column($index['address'][self::addressKey($address)] ?? [], 'mechanic_id'));
+
+        return count($mechanics) === 1 && $mechanics[array_key_first($mechanics)] !== null ? (int) $mechanics[array_key_first($mechanics)] : null;
     }
 
     private static function iso(mixed $value): string

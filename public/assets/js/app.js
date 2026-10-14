@@ -2502,12 +2502,13 @@
         }
         if (r.lift) {
             html += '<p class="app-rep-who">' + icon('settings', 'lft-icon--12') + esc(r.lift.mechanic || 'без механика') + ' · ' + esc(liftLabel(r.lift)) + '</p>';
-        } else if (master) {
-            html += '<div class="app-rep-match"><span class="lft-label">Чей это лифт? Выберите один раз — номер ' + esc(r.reg) + ' запомнится</span>';
+        } else if (master || r.candidates.length) {
+            html += '<div class="app-rep-match"><span class="lft-label">' + (master ? 'Чей это лифт?' : 'Какой из ваших лифтов?')
+                + ' Выберите один раз — номер ' + esc(r.reg) + ' запомнится</span>';
             if (r.candidates.length) {
                 $.each(r.candidates, function (_, c) {
                     html += '<button type="button" class="fp-chip app-type" data-repair-lift="' + c.id + '">'
-                        + esc(liftLabel(c)) + (c.mechanic ? ' · ' + esc(c.mechanic) : '') + (c.reg ? ' · №' + esc(c.reg) : '') + '</button>';
+                        + esc(liftLabel(c)) + (master && c.mechanic ? ' · ' + esc(c.mechanic) : '') + (c.reg ? ' · №' + esc(c.reg) : '') + '</button>';
                 });
             } else {
                 html += '<span class="app-muted">Адреса нет в списках лифтов бригады</span>';
@@ -2650,7 +2651,7 @@
         .on('click', '[data-repair-lift]', function () {
             var id = Number($(this).closest('[data-repair]').data('repair'));
             $(this).prop('disabled', true);
-            apiPost('/api/repairs/' + id + '/lift', { lift_id: Number($(this).data('repair-lift')) }).then(function () {
+            apiPost('/api/repairs/' + id + '/lift', { lift_id: Number($(this).data('repair-lift')), as: asRole() }).then(function () {
                 render();
             }, function (error) {
                 window.alert(errorText(error));

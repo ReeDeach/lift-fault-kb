@@ -118,16 +118,29 @@ final class RepairsApiTest extends TestCase
         $this->assertSame(['44', 'C6'], $byReg['9002н fault']['codes']);
         $this->assertEqualsCanonicalizing([$this->lift['b1'], $this->lift['b2']], array_column($byReg['9002н fault']['candidates'], 'id'));
 
-        // Механик видит только свои; заявки без лифта видит только мастер
+        // Механик видит только свои. Лифт по адресу не определён, но оба лифта дома у механика B —
+        // заявки его: он видит их сразу, с выбором из своих лифтов
         [, $a] = $this->call(self::MECH_A, 'GET', '/api/repairs');
         $this->assertSame(['9001н'], array_column($a['items'], 'reg'));
         [, $b] = $this->call(self::MECH_B, 'GET', '/api/repairs');
-        $this->assertSame([], $b['items']);
+        $this->assertCount(2, $b['items']);
+        $this->assertNull($b['items'][0]['lift']);
+        $this->assertEqualsCanonicalizing([$this->lift['b1'], $this->lift['b2']], array_column($b['items'][0]['candidates'], 'id'));
 
-        // Мастер указывает лифт — все заявки с этим номером сопоставлены, механик их видит
-        $this->assertSame(204, $this->call(self::MASTER, 'POST', "/api/repairs/{$byReg['9002н fault']['id']}/lift", ['lift_id' => $this->lift['b2']])[0]);
+        // Чужую заявку механик не трогает, чужой лифт не указывает
+        $faultId = $byReg['9002н fault']['id'];
+        $this->assertSame(404, $this->call(self::MECH_A, 'POST', "/api/repairs/$faultId/lift", ['lift_id' => $this->lift['a']])[0]);
+        $this->assertSame(400, $this->call(self::MECH_B, 'POST', "/api/repairs/$faultId/lift", ['lift_id' => $this->lift['a']])[0]);
+
+        // Механик выбирает свой лифт (ошибся), мастер поправляет — номер переходит к нужному лифту
+        $this->assertSame(204, $this->call(self::MECH_B, 'POST', "/api/repairs/$faultId/lift", ['lift_id' => $this->lift['b1']])[0]);
+        $this->assertSame(204, $this->call(self::MASTER, 'POST', "/api/repairs/$faultId/lift", ['lift_id' => $this->lift['b2'], 'as' => 'master'])[0]);
         [, $b] = $this->call(self::MECH_B, 'GET', '/api/repairs');
         $this->assertCount(2, $b['items']);
+        $this->assertSame([$this->lift['b2'], $this->lift['b2']], array_map(static fn (array $i): int => $i['lift']['id'], $b['items']));
+        $reg = $this->pdo->prepare('SELECT reg_number FROM lifts WHERE id = ?');
+        $reg->execute([$this->lift['b1']]);
+        $this->assertNull($reg->fetchColumn(), 'Ошибочно записанный номер снят');
 
         // Повторная загрузка того же отчёта ничего не дублирует, сопоставление сохраняется
         [, $again] = $this->call(self::MASTER, 'POST', '/api/repairs/import', ['data' => $this->report()]);
@@ -156,6 +169,6 @@ final class RepairsApiTest extends TestCase
         $this->assertSame(403, $this->call(self::MECH_A, 'POST', '/api/repairs/import', ['data' => $this->report()])[0]);
         $this->assertSame(400, $this->call(self::MASTER, 'POST', '/api/repairs/import', ['data' => base64_encode('не отчёт')])[0]);
         $this->assertSame(403, $this->call(self::MECH_A, 'GET', '/api/repairs', query: ['as' => 'master'])[0]);
-        $this->assertSame(403, $this->call(self::MECH_A, 'POST', '/api/repairs/1/lift', ['lift_id' => $this->lift['a']])[0]);
+        $this->assertSame(403, $this->call(self::MECH_A, 'POST', '/api/repairs/1/lift', ['lift_id' => $this->lift['a'], 'as' => 'master'])[0]);
     }
 }

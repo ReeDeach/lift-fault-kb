@@ -18,7 +18,7 @@ use App\Repairs\ReportParser;
  *
  *   POST /api/repairs/import            {name, data: base64 XLSX} — загружает мастер
  *   GET  /api/repairs?as=master&report= заявки отчёта (по умолчанию последнего) и список отчётов
- *   POST /api/repairs/{id}/lift         {lift_id} — мастер указывает лифт, номер из 1С запоминается
+ *   POST /api/repairs/{id}/lift         {lift_id, as} — указать лифт (мастер — любой, механик — свой), номер из 1С запоминается
  *   POST /api/repairs/{id}/journal      {entry_id, as} — заявка закрыта записью в журнал
  */
 final class RepairsController
@@ -93,12 +93,12 @@ final class RepairsController
 
     public function assignLift(Request $request): Response
     {
-        $this->master($request);
+        $who = $this->auth->require($request);
         $lift = $request->body['lift_id'] ?? null;
         if (!is_int($lift) || $lift <= 0) {
             throw new HttpException(400, 'Ошибка в данных', ['lift_id' => 'Выберите лифт']);
         }
-        $this->repairs->assignLift($this->id($request), $lift);
+        $this->repairs->assignLift($who, $this->asMaster($who, $request->body['as'] ?? null), $this->id($request), $lift);
 
         return new Response(204);
     }
