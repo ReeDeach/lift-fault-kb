@@ -943,3 +943,12 @@ img.app-logo-light,.app-logo img.app-logo-light{display:none}
 .app-dd-search input{flex:1;min-width:0;border:0;background:transparent;color:var(--ink);font:400 15px/24px var(--font-sans);outline:0}
 .app-dd-opt[hidden],.app-dd-group[hidden]{display:none}
 .app-dd-empty{margin:0;padding:14px}
+/* Число непрочитанных в чате на вкладке */
+[data-page].has-count{position:relative}
+[data-page].has-count::after{content:attr(data-count);position:absolute;top:4px;left:calc(50% + 6px);min-width:18px;height:18px;padding:0 5px;box-sizing:border-box;border-radius:9px;background:var(--accent);color:var(--on-accent);font:700 11px/18px var(--font-mono);text-align:center;box-shadow:0 0 0 2px var(--ground)}
+.fp-nav [data-page].has-count::after{top:-4px;left:auto;right:-24px}
+:root[data-theme="light"] .fp-nav [data-page].has-count::after{background:var(--top-mark);box-shadow:none}
+/* Кто в сети — в шапке чата */
+.app-online{display:inline-flex;align-items:center;gap:6px;color:var(--muted);min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.app-online i{flex:none;width:8px;height:8px;background:var(--muted)}
+.app-online.is-on i{background:var(--ok);box-shadow:0 0 6px var(--ok)}

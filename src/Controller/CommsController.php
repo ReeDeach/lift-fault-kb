@@ -26,7 +26,7 @@ use App\Push\Notifier;
  *   POST /api/requests                    {title, quantity, urgent, lift_id, body, photos}
  *   GET  /api/requests/{id}?as=master
  *   POST /api/requests/{id}/messages      {body, photos, status, as}
- *   GET  /api/updates?as=master           для значков «есть новое»
+ *   GET  /api/updates?as=master&chat_seen= для значков «есть новое» и числа непрочитанных в чате
  */
 final class CommsController
 {
@@ -99,8 +99,12 @@ final class CommsController
         $items = $this->comms->chat($who, $after, $before, $after !== null ? 100 : 50);
         // При подгрузке нового — и свежие лайки уже показанных сообщений
         $likes = $after !== null ? $this->comms->recentLikes($who, $after) : [];
+        $asMaster = $this->asMaster($who, $request->queryString('as'));
+        if ($asMaster || $who->mechanicId() !== null) {
+            $this->comms->touch($who, $asMaster);
+        }
 
-        return Response::json(['items' => $items, 'likes' => (object) $likes]);
+        return Response::json(['items' => $items, 'likes' => (object) $likes, 'online' => $this->comms->online($who)]);
     }
 
     public function postChat(Request $request): Response
@@ -227,8 +231,13 @@ final class CommsController
         if (!$asMaster && $who->mechanicId() === null) {
             return Response::json(['chat_last_id' => 0, 'requests_updated_at' => null, 'requests_open' => 0]);
         }
+        $this->comms->touch($who, $asMaster);
+        $seen = $this->optionalId($request, 'chat_seen');
 
-        return Response::json($this->comms->updates($who, $asMaster));
+        return Response::json($this->comms->updates($who, $asMaster) + [
+            // Сколько непрочитанных в чате — для числа на вкладке
+            'chat_unread' => $seen === null ? 0 : $this->comms->chatUnread($who, $seen),
+        ]);
     }
 
     private function asMaster(Identity $who, mixed $as): bool

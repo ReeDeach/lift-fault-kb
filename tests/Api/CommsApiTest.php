@@ -73,6 +73,7 @@ final class CommsApiTest extends TestCase
             $in = implode(',', array_fill(0, count($logins), '?'));
             $this->pdo->prepare("DELETE FROM messages WHERE author_login IN ($in)")->execute($logins);
             $this->pdo->prepare("DELETE FROM attachments WHERE uploader_login IN ($in)")->execute($logins);
+            $this->pdo->prepare("DELETE FROM presence WHERE login IN ($in)")->execute($logins);
             $this->pdo->prepare('DELETE FROM lifts WHERE address LIKE ?')->execute([$this->tag . '%']);
             $this->pdo->prepare('DELETE FROM mechanics WHERE name LIKE ?')->execute([$this->tag . '%']);
         }
@@ -161,6 +162,26 @@ final class CommsApiTest extends TestCase
         $this->assertFalse($unliked['likes']['liked']);
 
         $this->assertSame(404, $this->call(self::MECH_A, 'POST', '/api/chat/999999999/like')[0]);
+    }
+
+    public function testUnreadAndOnline(): void
+    {
+        [, $first] = $this->call(self::MECH_A, 'POST', '/api/chat', ['body' => 'Раз']);
+        $seen = $first['item']['id'];
+        $this->call(self::MECH_B, 'POST', '/api/chat', ['body' => 'Два']);
+        $this->call(self::MECH_A, 'POST', '/api/chat', ['body' => 'Три, моё']);
+        $this->call(self::MECH_B, 'POST', '/api/chat', ['body' => 'Четыре']);
+
+        // Для A после «Раз» непрочитанных два: свои не считаются
+        [, $u] = $this->call(self::MECH_A, 'GET', '/api/updates', query: ['chat_seen' => (string) $seen]);
+        $this->assertSame(2, $u['chat_unread']);
+
+        // B открыл приложение — A видит его в сети, себя — нет
+        $this->call(self::MECH_B, 'GET', '/api/updates');
+        [, $chat] = $this->call(self::MECH_A, 'GET', '/api/chat', query: ['after' => (string) $seen]);
+        $names = array_column($chat['online'], 'name');
+        $this->assertContains("{$this->tag} механик b", $names);
+        $this->assertNotContains("{$this->tag} механик a", $names);
     }
 
     public function testChatRules(): void

@@ -2029,16 +2029,17 @@
         $view.html(
             '<div class="app-ai-page app-chat-page">'
             + '<div class="app-chat-head"><span class="lft-label">' + icon('chat', 'lft-icon--12') + ' Чат · все участки</span>'
-            + '<span class="lft-label app-muted">механики и мастер</span></div>'
+            + '<span class="lft-label app-online" id="chat-online"></span></div>'
             + '<div class="app-msgs" id="chat-list">' + loading('Загрузка сообщений') + '</div>'
             + composerHtml('chat', 'Сообщение в общий чат')
             + '</div>'
         );
 
-        api('/api/chat').then(function (data) {
+        api('/api/chat', { as: asRole() }).then(function (data) {
             if (token !== renderToken) {
                 return;
             }
+            drawOnline(data.online);
             var $list = $('#chat-list').empty().removeData('day');
             if (data.items.length >= 50) {
                 $list.append('<div class="app-more"><button type="button" class="lft-btn lft-btn--ghost" id="chat-older">Раньше</button></div>');
@@ -2055,6 +2056,21 @@
         });
     }
 
+    // «В сети: Петров А. С., Мастер» — кто открывал приложение за последние полторы минуты
+    function drawOnline(list) {
+        var $el = $('#chat-online');
+        if (!list) {
+            return;
+        }
+        if (!list.length) {
+            $el.html('<i></i>в сети только вы').attr('title', '').removeClass('is-on');
+            return;
+        }
+        var names = $.map(list, function (p) { return p.name; });
+        $el.addClass('is-on').attr('title', names.join(', '))
+            .html('<i></i>в сети ' + list.length + ': ' + esc(names.slice(0, 3).join(', ')) + (names.length > 3 ? ' и ещё ' + (names.length - 3) : ''));
+    }
+
     function noteChat(items) {
         if (!items.length) {
             return;
@@ -2066,9 +2082,10 @@
     }
 
     function pollChat() {
-        api('/api/chat', { after: chatState.last }).then(function (data) {
+        api('/api/chat', { after: chatState.last, as: asRole() }).then(function (data) {
             if (currentRoute().page === 'chat') {
                 drawLikes(data.likes);
+                drawOnline(data.online);
             }
             if (!data.items.length || currentRoute().page !== 'chat') {
                 return;
@@ -2445,10 +2462,13 @@
         }
         var page = currentRoute().page;
         var chat = u.chat_last_id > Number(remember(SEEN_CHAT) || 0) && page !== 'chat';
+        // Число непрочитанных вместо точки; своих сообщений нет в счёте
+        var unread = chat ? (u.chat_unread || 0) : 0;
+        $('[data-page="chat"]').attr('data-count', unread > 99 ? '99+' : (unread || null)).toggleClass('has-count', unread > 0);
         var req = !!u.requests_updated_at && u.requests_updated_at > (remember(SEEN_REQUESTS) || '') && page !== 'requests';
         // Новые заявки на ремонт механику (из 1С или от мастера), пока он не открыл «Ремонт»
         var rep = (u.repairs_last_id || 0) > Number(remember(SEEN_REPAIRS) || 0) && page !== 'repairs';
-        $('[data-page="chat"]').toggleClass('has-new', chat);
+        $('[data-page="chat"]').toggleClass('has-new', chat && !unread);
         $('[data-page="requests"]').toggleClass('has-new', req || rep);
         $('[data-switch="repairs"]').toggleClass('is-new', rep);
         $('[data-switch="requests"]').toggleClass('is-new', req);
@@ -2458,7 +2478,7 @@
         if (!session.role || document.hidden) {
             return;
         }
-        api('/api/updates', { as: asRole() }).then(function (u) {
+        api('/api/updates', { as: asRole(), chat_seen: remember(SEEN_CHAT) || undefined }).then(function (u) {
             // Первое открытие: старое не считается новым
             if (remember(SEEN_CHAT) === null) {
                 remember(SEEN_CHAT, String(u.chat_last_id));

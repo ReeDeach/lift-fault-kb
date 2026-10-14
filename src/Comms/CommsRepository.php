@@ -353,6 +353,48 @@ final class CommsRepository
         ], $rows);
     }
 
+    // ---------- Кто в сети ----------
+
+    /**
+     * Отметка «был в приложении сейчас».
+     */
+    public function touch(Identity $who, bool $asMaster): void
+    {
+        $this->pdo->prepare(
+            'INSERT INTO presence (login, mechanic_id, as_master, last_seen) VALUES (?, ?, ?, NOW()) AS new '
+            . 'ON DUPLICATE KEY UPDATE mechanic_id = new.mechanic_id, as_master = new.as_master, last_seen = NOW()'
+        )->execute([$who->login, $asMaster ? null : $who->mechanicId(), (int) $asMaster]);
+    }
+
+    /**
+     * Кто в сети, кроме меня: был в приложении за последние полторы минуты.
+     *
+     * @return list<array{name: string, role: string, section: string|null}>
+     */
+    public function online(Identity $who): array
+    {
+        $stmt = $this->pdo->prepare(
+            'SELECT p.as_master, me.name, me.section FROM presence p LEFT JOIN mechanics me ON me.id = p.mechanic_id '
+            . 'WHERE p.last_seen > NOW() - INTERVAL 90 SECOND AND p.login <> ? AND (p.as_master = 1 OR me.id IS NOT NULL) ORDER BY p.as_master DESC, me.name'
+        );
+        $stmt->execute([$who->login]);
+
+        return array_map(static fn (array $r): array => (bool) $r['as_master']
+            ? ['name' => 'Мастер', 'role' => 'master', 'section' => null]
+            : ['name' => $r['name'], 'role' => 'mechanic', 'section' => $r['section']], $stmt->fetchAll(PDO::FETCH_ASSOC));
+    }
+
+    /**
+     * Непрочитанные в общем чате: сообщения после $seenId, кроме своих (до 99).
+     */
+    public function chatUnread(Identity $who, int $seenId): int
+    {
+        $stmt = $this->pdo->prepare('SELECT COUNT(*) FROM (SELECT 1 FROM messages WHERE request_id IS NULL AND id > ? AND author_login <> ? LIMIT 100) t');
+        $stmt->execute([$seenId, $who->login]);
+
+        return (int) $stmt->fetchColumn();
+    }
+
     // ---------- Лайки ----------
 
     /**
