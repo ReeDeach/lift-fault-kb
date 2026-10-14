@@ -952,3 +952,6 @@ img.app-logo-light,.app-logo img.app-logo-light{display:none}
 .app-online{display:inline-flex;align-items:center;gap:6px;color:var(--muted);min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .app-online i{flex:none;width:8px;height:8px;background:var(--muted)}
 .app-online.is-on i{background:var(--ok);box-shadow:0 0 6px var(--ok)}
+/* Шапка чата прилипает: «в сети» видно при любой прокрутке */
+.app-chat-head{position:sticky;top:0;z-index:6;background:var(--ground);padding-bottom:12px;border-bottom:1px solid var(--line-faint)}
+@media (max-width:1023px){.app-chat-head{padding-bottom:10px}}
