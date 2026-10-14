@@ -190,7 +190,7 @@ final class RepairsRepository
         }
         $stmt = $this->pdo->prepare(
             'SELECT c.*, l.address AS lift_address, l.object_name, l.lift_no, l.entrance, COALESCE(l.mechanic_id, c.mechanic_id) AS owner_id, m.name AS mechanic_name '
-            . ', j.author_id AS closer_id, j.status AS closed_status, cm.name AS closer_name '
+            . ', j.author_id AS closer_id, j.status AS closed_status, j.occurred_at AS closed_at, cm.name AS closer_name '
             . 'FROM repair_calls c LEFT JOIN lifts l ON l.id = c.lift_id LEFT JOIN mechanics m ON m.id = COALESCE(l.mechanic_id, c.mechanic_id) '
             . 'LEFT JOIN journal_entries j ON j.id = c.journal_entry_id LEFT JOIN mechanics cm ON cm.id = j.author_id '
             . "WHERE $where ORDER BY (c.finished_at IS NULL) DESC, c.started_at DESC"
@@ -221,6 +221,8 @@ final class RepairsRepository
                 'closed_by' => $r['journal_entry_id'] === null ? null : ($r['closer_name'] ?? 'Мастер'),
                 // Итог записи: resolved — заявка выполнена, остальное (наблюдать, повторный выезд) — ещё висит
                 'closed_status' => $r['closed_status'],
+                // Когда сделана работа по записи журнала (время из записи, местное)
+                'closed_at' => $r['closed_at'] === null ? null : self::iso($r['closed_at']),
                 'lift' => $r['lift_id'] === null ? null : [
                     'id' => (int) $r['lift_id'],
                     'address' => $r['lift_address'],

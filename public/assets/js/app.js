@@ -2523,7 +2523,7 @@
             + (r.by_master ? '' : '<span class="app-rep-count' + repeatClass(r.stops_30d) + '" title="Сколько раз лифт останавливался за последние 30 дней (из отчёта 1С)">'
                 + r.stops_30d + ' ' + plural(r.stops_30d, 'остановка', 'остановки', 'остановок') + ' за 30 дней</span>') + '</div></div>'
             + '<p class="app-rep-addr">' + esc(r.address) + (r.floor ? ' · эт. ' + esc(r.floor) : '') + '</p>'
-            + '<p class="app-rep-time lft-label">' + esc(shortTime(r.started_at)) + ' → ' + (r.finished_at ? esc(shortTime(r.finished_at)) : (done ? 'закрыта в журнале' : (pending ? 'в журнале: ' + esc(result.text) : 'ещё не закрыта'))) + '</p>';
+            + '<p class="app-rep-time lft-label">' + esc(shortTime(r.started_at)) + ' → ' + (r.finished_at ? esc(shortTime(r.finished_at)) : (r.closed_at ? esc(shortTime(r.closed_at)) + (pending ? ' · ' + esc(result.text) : ' · в журнале') : 'ещё не закрыта')) + '</p>';
         if (codes.length) {
             html += '<div class="app-rep-codes">';
             $.each(codes, function (_, c) {
@@ -2792,8 +2792,7 @@
                         : (r.by_master ? 'Заявка мастера' : 'Заявка 1С') + (codes ? ': код ' + codes : '') + (notes.length ? (codes ? ', ' : ': ') + notes.join(', ') : '')),
                     symptoms: $.trim('Заявка ' + shortTime(r.started_at) + (r.floor ? ', эт. ' + r.floor : '') + '. '
                         + (r.stopped ? 'Лифт стоял. ' : '') + (notes.length ? notes.join('. ') + '.' : '')),
-                    status: 'resolved',
-                    occurred_at: r.started_at.slice(0, 16)
+                    status: 'resolved'
                 }
             });
         });
