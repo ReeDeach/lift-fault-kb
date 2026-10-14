@@ -2529,8 +2529,8 @@
             html += '<p class="app-rep-who app-muted">' + icon('settings', 'lft-icon--12')
                 + (r.mechanic ? esc(r.mechanic) + ' · лифт не уточнён' : 'Адреса нет в списках лифтов бригады') + '</p>';
         } else if (master || r.candidates.length) {
-            html += '<div class="app-rep-match"><span class="lft-label">' + (master ? 'Чей это лифт?' : 'Какой из ваших лифтов?')
-                + ' Выберите один раз — номер ' + esc(r.reg) + ' запомнится</span>';
+            html += '<div class="app-rep-match"><span class="app-hint"><b>' + (master ? 'Чей это лифт?' : 'Какой из ваших лифтов?')
+                + '</b> Выберите один раз — номер ' + esc(r.reg) + ' запомнится</span>';
             if (r.candidates.length) {
                 $.each(r.candidates, function (_, c) {
                     html += '<button type="button" class="fp-chip app-type" data-repair-lift="' + c.id + '">'
@@ -2544,8 +2544,8 @@
         if (r.journal_entry_id) {
             html += '<a class="app-rep-done lft-label" href="' + hashFor('journal', { lift: r.lift ? r.lift.id : '' }) + '">' + icon('ok', 'lft-icon--12') + 'Закрыта записью в журнале</a>';
         } else if (master || r.mine) {
-            html += '<button type="button" class="lft-btn lft-btn--ghost app-rep-close" data-repair-close="' + r.id + '">' + icon('ok', 'lft-icon--12') + 'Закрыть заявку</button>'
-                + '<span class="app-rep-hint lft-label">Запись в журнал лифта: что было и что сделано</span>';
+            html += '<button type="button" class="lft-btn lft-btn--ghost app-rep-close" data-repair-close="' + r.id + '" title="Запись в журнал лифта: что было и что сделано">'
+                + icon('ok', 'lft-icon--12') + 'Закрыть заявку</button>';
         }
         return html + '</li>';
     }
@@ -2562,9 +2562,7 @@
             + '<div class="app-req-head"><div><p class="lft-label">' + icon('smile', 'lft-icon--12') + ' Заявки на ремонт · от мастера и из 1С</p>'
             + '<p class="fp-title" id="rep-title">' + (master ? 'Заявки участка' : 'Заявки по моим лифтам') + '</p>'
             + '<p class="app-muted" id="rep-period"></p></div>'
-            + (master ? '<div class="app-rep-actions"><button type="button" class="lft-btn" id="rep-new">' + icon('warning') + 'Заявка механику</button>'
-                + '<label class="lft-btn lft-btn--ghost app-rep-upload">' + icon('arrow-up') + 'Загрузить отчёт 1С'
-                + '<input type="file" id="rep-file" accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"></label></div>' : '')
+            + (master ? '<button type="button" class="lft-btn app-rep-new" id="rep-new">' + icon('warning') + 'Заявка механику</button>' : '')
             + '</div>'
             + '<p class="app-field-error lft-label" id="rep-msg" hidden></p>'
             + '<div id="rep-body">' + loading() + '</div>'
@@ -2606,6 +2604,13 @@
         drawDots();
     }
 
+    // Заголовок раздела «Отчёт 1С»; мастер загружает отчёт прямо отсюда
+    function reportHeadHtml(master) {
+        return '<div class="app-rep-section"><p class="lft-label app-rep-manual-h">' + icon('journal', 'lft-icon--12') + 'Отчёт 1С</p>'
+            + (master ? '<label class="lft-btn lft-btn--ghost app-rep-upload">' + icon('arrow-up', 'lft-icon--12') + 'Загрузить'
+                + '<input type="file" id="rep-file" accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"></label>' : '') + '</div>';
+    }
+
     function drawRepairs() {
         var data = repairsData;
         var master = isMaster();
@@ -2613,7 +2618,7 @@
             markRepairsSeen(data);
         }
         if (!data.report) {
-            $('#rep-body').html(manualHtml(data, master) + '<p class="app-empty">' + (master
+            $('#rep-body').html(manualHtml(data, master) + reportHeadHtml(master) + '<p class="app-empty">' + (master
                 ? 'Отчётов 1С пока нет. Загрузите утренний отчёт (файл XLSX из почты) — заявки разложатся по лифтам механиков.'
                 : 'Отчётов 1С пока нет: мастер загружает отчёт утром.') + '</p>');
             return;
@@ -2633,7 +2638,7 @@
         var mineCount = $.grep(data.items, function (x) { return x.mine; }).length;
         $('#rep-title').text(master || !mineOnly ? 'Заявки участка' : 'Заявки по моим лифтам');
 
-        var html = manualHtml(data, master) + '<p class="lft-label app-rep-manual-h">' + icon('journal', 'lft-icon--12') + 'Отчёт 1С</p>';
+        var html = manualHtml(data, master) + reportHeadHtml(master);
         if (data.reports.length > 1) {
             html += '<label class="fp-chip app-select app-rep-select">' + icon('journal') + '<select id="rep-report" aria-label="Отчёт">';
             $.each(data.reports, function (_, x) {
@@ -2654,7 +2659,7 @@
             + '<div class="bad"><b>' + Object.keys(heavy).length + '</b><span class="lft-label">частые: 4+ ост. за 30 дн.</span></div>'
             + '</div>';
         if (master && unmatched.length) {
-            html += '<p class="app-rep-warn lft-label">' + icon('warning', 'lft-icon--12') + unmatched.length + ' ' + plural(unmatched.length, 'заявка', 'заявки', 'заявок') + ' без лифта: укажите, чей это лифт, — механик увидит заявку</p>';
+            html += '<p class="app-rep-warn app-hint">' + icon('warning', 'lft-icon--12') + unmatched.length + ' ' + plural(unmatched.length, 'заявка', 'заявки', 'заявок') + ' без лифта: укажите, чей это лифт, — механик увидит заявку</p>';
         }
         html += '<div class="app-types app-journal-tabs" role="tablist">'
             + '<button type="button" class="fp-chip app-type" data-rep-kind="fault" aria-pressed="' + (repairsKind === 'fault') + '">Неисправности · ' + faults.length + '</button>'
@@ -3064,7 +3069,7 @@
             + '<input class="app-draft-input" name="codes" maxlength="100" placeholder="45 44 C6" autocomplete="off"></label>'
             + '<button type="button" class="fp-chip app-type app-urgent" id="rep-new-stopped" aria-pressed="false">' + icon('warning', 'lft-icon--12') + 'Лифт стоит</button>'
             + '</div>'
-            + '<p class="lft-label app-muted">Механик лифта увидит заявку в «Заявках» и получит уведомление. «Лифт стоит» — срочное.</p>'
+            + '<p class="app-hint">Механик лифта увидит заявку в «Заявках» и получит уведомление. «Лифт стоит» — срочное.</p>'
             + '<p class="app-field-error lft-label" id="rep-new-error" hidden></p>'
             + '<button type="submit" class="lft-btn" id="rep-new-submit">' + icon('arrow-up') + 'Отправить механику</button>'
             + '</form></div>');
@@ -3290,7 +3295,7 @@
             $('#push-body').html(error && error.status !== undefined
                 ? errorWindow(error, 'Уведомления')
                 : '<p class="app-text">Этот браузер не дал включить уведомления.</p>'
-                    + '<p class="lft-label">Откройте приложение в Chrome, Firefox, Edge или Safari (на iPhone — с экрана «Домой»). '
+                    + '<p class="app-hint">Откройте приложение в Chrome, Firefox, Edge или Safari (на iPhone — с экрана «Домой»). '
                     + 'В режиме инкогнито уведомления не работают.</p>');
         });
     }
@@ -3311,7 +3316,7 @@
         }
         if (Notification.permission === 'denied') {
             $body.html('<p class="app-text">Уведомления для этого сайта запрещены в настройках браузера.</p>'
-                + '<p class="lft-label">Chrome: значок слева от адреса → Настройки сайта → Уведомления → Разрешить. Потом откройте это окно снова.</p>');
+                + '<p class="app-hint">Chrome: значок слева от адреса → Настройки сайта → Уведомления → Разрешить. Потом откройте это окно снова.</p>');
             return;
         }
         var prefs = pushPrefs();

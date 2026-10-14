@@ -9,7 +9,8 @@ body{background:var(--ground);color:var(--ink);font-family:var(--font-sans);marg
 .lft-label{font-family:var(--font-mono);font-size:11px;line-height:14px;font-weight:500;letter-spacing:.08em;text-transform:uppercase;color:var(--muted)}
 :focus-visible{outline:2px solid var(--ink);outline-offset:2px}
 
-.lft-btn{font-family:var(--font-mono);font-size:13px;font-weight:500;letter-spacing:.08em;text-transform:uppercase;padding:12px 20px;border:1px solid var(--accent);border-radius:var(--radius-none);background:var(--accent);color:var(--on-accent);cursor:pointer}
+/* Кнопка: значок и текст в ряд с промежутком — везде одинаково */
+.lft-btn{display:inline-flex;align-items:center;justify-content:center;gap:8px;text-decoration:none;font-family:var(--font-mono);font-size:13px;font-weight:500;letter-spacing:.08em;text-transform:uppercase;padding:12px 20px;border:1px solid var(--accent);border-radius:var(--radius-none);background:var(--accent);color:var(--on-accent);cursor:pointer}
 @media (hover:hover){.lft-btn:hover{background:var(--ink);border-color:var(--ink)}}
 .lft-btn--ghost{background:transparent;color:var(--accent);border-color:var(--line)}
 @media (hover:hover){.lft-btn--ghost:hover{background:var(--surface-raised);color:var(--ink)}}
@@ -473,7 +474,8 @@ body.app-dd-lock{overflow:hidden}
 .app-liftno[aria-pressed="true"] small{color:var(--on-accent)}
 .app-draft{border-top:1px solid var(--line);padding-top:16px}
 .app-draft-field{display:grid;gap:4px}
-.app-draft-input{width:100%;background:var(--surface-raised);border:1px solid var(--line-faint);color:var(--ink);font:400 15px/22px var(--font-sans);padding:8px 10px;resize:none;color-scheme:dark}
+/* Ширина с учётом отступов и рамки: поле не вылезает за край окна */
+.app-draft-input{box-sizing:border-box;min-width:0;width:100%;background:var(--surface-raised);border:1px solid var(--line-faint);color:var(--ink);font:400 15px/22px var(--font-sans);padding:8px 10px;resize:none;color-scheme:dark}
 .app-draft-input:focus{outline:0;border-color:var(--accent)}
 .app-draft input[name="codes"]{font-family:var(--font-mono);text-transform:uppercase}
 .app-save-btn{display:inline-flex;gap:8px;align-items:center;justify-content:center}
@@ -766,6 +768,8 @@ a.app-type{display:inline-flex;align-items:center;text-decoration:none}
 .app-field{display:grid;gap:6px}
 .app-field-row{display:flex;gap:12px;align-items:flex-end;flex-wrap:wrap}
 .app-field-row .app-field{flex:1;min-width:140px}
+/* Кнопка-переключатель рядом с полем — той же высоты, что поле */
+.app-field-row>.app-type{height:40px;flex:none}
 .app-urgent{height:48px;display:inline-flex;gap:6px;align-items:center}
 .app-urgent[aria-pressed="true"]{border-color:var(--signal);color:var(--signal)}
 .app-req-form .lft-btn[type="submit"]{display:inline-flex;gap:8px;align-items:center;justify-content:center}
@@ -828,7 +832,7 @@ img.app-logo-light,.app-logo img.app-logo-light{display:none}
 /* ---------- Заявки на ремонт из отчёта 1С ---------- */
 .app-req-switch{margin:0 0 16px}
 .app-req-switch .app-type{display:inline-flex;gap:6px;align-items:center}
-.app-rep-upload{position:relative;display:inline-flex;gap:8px;align-items:center;cursor:pointer}
+.app-rep-upload{position:relative;cursor:pointer;padding:6px 12px;font-size:12px}
 .app-rep-upload input{position:absolute;inset:0;opacity:0;cursor:pointer}
 .app-rep-upload .lft-icon{width:16px;height:16px}
 .app-ok-msg{color:var(--ok)}
@@ -856,10 +860,11 @@ img.app-logo-light,.app-logo img.app-logo-light{display:none}
 .app-rep-note{font-size:14px;line-height:20px}
 .app-rep-who{display:flex;gap:6px;align-items:center;font-size:13px;color:var(--muted)}
 .app-rep-match{display:flex;flex-wrap:wrap;gap:6px;align-items:center;padding:8px;border:1px dashed var(--accent)}
-.app-rep-match .lft-label{flex-basis:100%;color:var(--accent)}
+.app-rep-match .app-hint{flex-basis:100%}
+.app-rep-match .app-hint b{color:var(--ink);font-weight:600}
 .app-rep-close{justify-self:start;display:inline-flex;gap:8px;align-items:center}
 .app-rep-done{display:inline-flex;gap:6px;align-items:center;color:var(--ok);text-decoration:none}
-@media (max-width:560px){.app-rep-tiles{grid-template-columns:repeat(2,minmax(0,1fr))}.app-rep-upload{width:100%;justify-content:center}}
+@media (max-width:560px){.app-rep-tiles{grid-template-columns:repeat(2,minmax(0,1fr))}.app-rep-new{width:100%}}
 
 /* ---------- Push-уведомления ---------- */
 .app-push[hidden]{display:none}
@@ -890,13 +895,16 @@ img.app-logo-light,.app-logo img.app-logo-light{display:none}
 @media (max-width:400px){.fp-top img{height:28px}}
 /* Запись журнала, закрывшая заявку 1С */
 .app-pj-repair{display:inline-flex;align-items:center;gap:6px;align-self:start;color:var(--ok);text-decoration:none}
-.app-rep-hint{color:var(--muted);margin-top:-2px}
 /* Заявки на ремонт: от мастера и из 1С */
-.app-rep-actions{display:flex;flex-wrap:wrap;gap:8px}
 .app-rep-manual{display:grid;gap:8px;margin-bottom:20px}
 .app-rep-manual-h{display:flex;align-items:center;gap:6px;margin:0 0 8px}
 .app-rep-manual .app-rep-manual-h{margin:0}
 /* Точка «новое» на переключателе Ремонт / Запчасти */
 .app-req-switch .is-new{position:relative}
 .app-req-switch .is-new::after{content:"";position:absolute;top:-4px;right:-4px;width:8px;height:8px;background:var(--accent);box-shadow:0 0 0 2px var(--ground)}
-@media (max-width:560px){.app-rep-actions{width:100%}.app-rep-actions .lft-btn{flex:1 1 100%;justify-content:center}}
+/* Заголовок раздела «Отчёт 1С» с кнопкой загрузки справа */
+.app-rep-section{display:flex;align-items:center;justify-content:space-between;gap:12px;margin:0 0 12px}
+.app-rep-section .app-rep-manual-h{margin:0}
+/* Пояснение в форме: обычный текст, не мелкие заглавные */
+.app-hint{margin:0;color:var(--muted);font-size:14px;line-height:20px}
+.app-hint.app-rep-warn{color:var(--accent)}
