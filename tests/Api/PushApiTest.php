@@ -236,6 +236,15 @@ final class PushApiTest extends TestCase
         $this->call(self::MASTER, 'POST', '/api/repairs/import', $report);
         $this->assertSame([], $this->takeSent(), 'Повторная загрузка того же отчёта не будит механика');
 
+        // Заявку механика A закрыл механик B — A узнаёт об этом, B себе не пишет
+        $lift = (int) $this->pdo->query("SELECT id FROM lifts WHERE address = '{$this->street} 3'")->fetchColumn();
+        $callId = (int) $this->pdo->query("SELECT id FROM repair_calls WHERE lift_id = $lift AND kind = 'fault' ORDER BY id DESC LIMIT 1")->fetchColumn();
+        [, $entry] = $this->call(self::MECH_B, 'POST', '/api/journal', ['lift_id' => $lift, 'title' => 'Подмена', 'status' => 'resolved']);
+        $this->assertSame(204, $this->call(self::MECH_B, 'POST', "/api/repairs/$callId/journal", ['entry_id' => $entry['item']['id']])[0]);
+        $sent = $this->takeSent();
+        $this->assertSame(['a'], array_keys($sent));
+        $this->assertSame("Заявку закрыл {$this->tag} механик b", $sent['a']['title']);
+
         // Заявка от мастера лично — механику лифта, «лифт стоит» срочно
         $lift = (int) $this->pdo->query("SELECT id FROM lifts WHERE address = '{$this->street} 3'")->fetchColumn();
         $this->call(self::MASTER, 'POST', '/api/repairs', ['lift_id' => $lift, 'info' => 'Жалоба жильцов: скрежет', 'stopped' => true, 'as' => 'master']);

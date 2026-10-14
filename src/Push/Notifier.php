@@ -169,6 +169,25 @@ final class Notifier
     }
 
     /**
+     * Заявку по лифту механика закрыл другой механик или мастер.
+     *
+     * @param array{address: string, reg: ?string} $call
+     */
+    public function repairClosedByOther(Identity $who, bool $asMaster, array $call, int $ownerId): void
+    {
+        if (!$this->enabled()) {
+            return;
+        }
+        $name = $asMaster ? 'Мастер' : ($who->mechanic['name'] ?? 'Механик');
+        $this->push($this->repo()->forMechanic($ownerId, 'repairs', $who->login), [
+            'title' => 'Заявку закрыл ' . $name,
+            'body' => self::cut($call['address'] . ($call['reg'] ? ' · № ' . $call['reg'] : '') . ' — запись в журнале лифта'),
+            'url' => '#/repairs',
+            'tag' => 'repair-closed',
+        ]);
+    }
+
+    /**
      * Проверка с экрана настроек: уведомление только на это устройство, без учёта тишины.
      *
      * @param array{id: int, endpoint: string, p256dh: string, auth: string, quiet: bool} $subscription

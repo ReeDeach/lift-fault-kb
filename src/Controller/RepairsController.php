@@ -163,7 +163,12 @@ final class RepairsController
         if (!is_int($entry) || $entry <= 0) {
             throw new HttpException(400, 'Ошибка в данных', ['entry_id' => 'Ожидается id записи журнала']);
         }
-        $this->repairs->linkJournal($who, $this->asMaster($who, $request->body['as'] ?? null), $this->id($request), $entry);
+        $asMaster = $this->asMaster($who, $request->body['as'] ?? null);
+        $closed = $this->repairs->linkJournal($who, $asMaster, $this->id($request), $entry);
+        // Закрыл не тот, чей лифт: сообщить механику лифта
+        if ($closed['owner_id'] !== null && $closed['owner_id'] !== ($asMaster ? null : $who->mechanicId())) {
+            $this->notifier?->repairClosedByOther($who, $asMaster, $closed, $closed['owner_id']);
+        }
 
         return new Response(204);
     }

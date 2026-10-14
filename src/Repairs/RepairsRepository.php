@@ -190,7 +190,9 @@ final class RepairsRepository
         }
         $stmt = $this->pdo->prepare(
             'SELECT c.*, l.address AS lift_address, l.object_name, l.lift_no, l.entrance, COALESCE(l.mechanic_id, c.mechanic_id) AS owner_id, m.name AS mechanic_name '
+            . ', j.author_id AS closer_id, cm.name AS closer_name '
             . 'FROM repair_calls c LEFT JOIN lifts l ON l.id = c.lift_id LEFT JOIN mechanics m ON m.id = COALESCE(l.mechanic_id, c.mechanic_id) '
+            . 'LEFT JOIN journal_entries j ON j.id = c.journal_entry_id LEFT JOIN mechanics cm ON cm.id = j.author_id '
             . "WHERE $where ORDER BY (c.finished_at IS NULL) DESC, c.started_at DESC"
         );
         $stmt->execute($params);
@@ -215,6 +217,8 @@ final class RepairsRepository
                 // Заявка от мастера лично, не из 1С
                 'by_master' => $r['report_id'] === null,
                 'journal_entry_id' => $r['journal_entry_id'] === null ? null : (int) $r['journal_entry_id'],
+                // Кто закрыл заявку записью в журнал: механик или мастер (запись без автора-механика)
+                'closed_by' => $r['journal_entry_id'] === null ? null : ($r['closer_name'] ?? 'Мастер'),
                 'lift' => $r['lift_id'] === null ? null : [
                     'id' => (int) $r['lift_id'],
                     'address' => $r['lift_address'],
@@ -283,24 +287,39 @@ final class RepairsRepository
     }
 
     /**
-     * Заявка закрыта записью в журнал. Если лифт заявки ещё не был известен, он берётся
-     * из записи (по правилам assignLift: механик — только свой лифт).
+     * Заявка закрыта записью в журнал. Закрыть может любой механик (своей записью) или мастер,
+     * закрытую — повторно нельзя. Если лифт заявки ещё не был известен, он берётся из записи
+     * (по правилам assignLift: механик — только свой лифт).
+     *
+     * @return array{owner_id: int|null, address: string, reg: string|null} чья заявка — для уведомления
      */
-    public function linkJournal(Identity $who, bool $asMaster, int $callId, int $entryId): void
+    public function linkJournal(Identity $who, bool $asMaster, int $callId, int $entryId): array
     {
         $stmt = $this->pdo->prepare(
-            'SELECT c.lift_id, COALESCE(l.mechanic_id, c.mechanic_id) AS mechanic_id FROM repair_calls c LEFT JOIN lifts l ON l.id = c.lift_id WHERE c.id = ?'
+            'SELECT c.lift_id, c.lift_reg, c.address, c.journal_entry_id, COALESCE(l.mechanic_id, c.mechanic_id) AS mechanic_id '
+            . 'FROM repair_calls c LEFT JOIN lifts l ON l.id = c.lift_id WHERE c.id = ?'
         );
         $stmt->execute([$callId]);
         $call = $stmt->fetch(PDO::FETCH_ASSOC);
-        if ($call === false || (!$asMaster && (int) $call['mechanic_id'] !== $who->mechanicId())) {
+        // Закрыть можно и чужую заявку: механик бригады подменил товарища или был рядом
+        if ($call === false) {
             throw new HttpException(404, 'Заявка не найдена');
         }
-        $stmt = $this->pdo->prepare('SELECT lift_id FROM journal_entries WHERE id = ?');
+        if (!$asMaster && $who->mechanicId() === null) {
+            throw new HttpException(403, 'Войдите как механик или мастер');
+        }
+        if ($call['journal_entry_id'] !== null) {
+            throw new HttpException(409, 'Заявка уже закрыта записью в журнале');
+        }
+        $stmt = $this->pdo->prepare('SELECT lift_id, author_id FROM journal_entries WHERE id = ?');
         $stmt->execute([$entryId]);
-        $entryLift = $stmt->fetchColumn();
-        if ($entryLift === false || ($call['lift_id'] !== null && (int) $entryLift !== (int) $call['lift_id'])) {
+        $entry = $stmt->fetch(PDO::FETCH_ASSOC);
+        $entryLift = $entry === false ? false : $entry['lift_id'];
+        if ($entry === false || ($call['lift_id'] !== null && (int) $entryLift !== (int) $call['lift_id'])) {
             throw new HttpException(400, 'Ошибка в данных', ['entry_id' => 'Запись журнала не найдена или по другому лифту']);
+        }
+        if (!$asMaster && (int) $entry['author_id'] !== $who->mechanicId()) {
+            throw new HttpException(400, 'Ошибка в данных', ['entry_id' => 'Заявку закрывают своей записью в журнале']);
         }
         $this->pdo->prepare('UPDATE repair_calls SET journal_entry_id = ? WHERE id = ?')->execute([$entryId, $callId]);
         if ($call['lift_id'] === null) {
@@ -310,6 +329,12 @@ final class RepairsRepository
                 // Запись по чужому лифту: заявка закрыта, лифт укажет мастер
             }
         }
+
+        return [
+            'owner_id' => $call['mechanic_id'] === null ? null : (int) $call['mechanic_id'],
+            'address' => $call['address'],
+            'reg' => $call['lift_reg'],
+        ];
     }
 
     /**

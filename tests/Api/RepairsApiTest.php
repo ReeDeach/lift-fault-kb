@@ -187,8 +187,9 @@ final class RepairsApiTest extends TestCase
         $this->assertSame('9001н', $journal['items'][0]['repair']['reg']);
         $this->assertSame('2026-03-31T18:29:01', $journal['items'][0]['repair']['started_at']);
 
-        // Чужую заявку механик закрыть не может
-        $this->assertSame(404, $this->call(self::MECH_B, 'POST', "/api/repairs/$callId/journal", ['entry_id' => $entry['item']['id']])[0]);
+        // Уже закрытую заявку повторно не закрыть; видно, кто закрыл
+        $this->assertSame(409, $this->call(self::MECH_B, 'POST', "/api/repairs/$callId/journal", ['entry_id' => $entry['item']['id']])[0]);
+        $this->assertSame("{$this->tag} механик a", $a['items'][0]['closed_by']);
 
         // Заявка без точного лифта: механик закрывает её записью по своему лифту — лифт запоминается
         [, $b] = $this->call(self::MECH_B, 'GET', '/api/repairs');
@@ -200,6 +201,26 @@ final class RepairsApiTest extends TestCase
         foreach ($b['items'] as $item) {
             $this->assertSame($this->lift['b2'], $item['lift']['id'], 'Номер 1С запомнен у лифта — обе заявки по нему сопоставлены');
         }
+    }
+
+    public function testOtherMechanicClosesCall(): void
+    {
+        $this->call(self::MASTER, 'POST', '/api/repairs/import', ['data' => $this->report()]);
+        [, $a] = $this->call(self::MECH_A, 'GET', '/api/repairs');
+        $callId = $a['items'][0]['id'];
+
+        // Механик B подменил A: закрывает его заявку своей записью по лифту A
+        [, $entryA] = $this->call(self::MECH_A, 'POST', '/api/journal', ['lift_id' => $this->lift['a'], 'title' => 'Запись A', 'status' => 'resolved']);
+        [, $entryB] = $this->call(self::MECH_B, 'POST', '/api/journal', ['lift_id' => $this->lift['a'], 'codes' => '49', 'title' => 'Подмена: код 49', 'status' => 'resolved']);
+        [$status, $error] = $this->call(self::MECH_B, 'POST', "/api/repairs/$callId/journal", ['entry_id' => $entryA['item']['id']]);
+        $this->assertSame(400, $status, 'Чужой записью заявку не закрыть');
+        $this->assertArrayHasKey('entry_id', $error['error']['fields']);
+        $this->assertSame(204, $this->call(self::MECH_B, 'POST', "/api/repairs/$callId/journal", ['entry_id' => $entryB['item']['id']])[0]);
+
+        [, $a] = $this->call(self::MECH_A, 'GET', '/api/repairs');
+        $this->assertSame($entryB['item']['id'], $a['items'][0]['journal_entry_id']);
+        $this->assertSame("{$this->tag} механик b", $a['items'][0]['closed_by']);
+        $this->assertSame(409, $this->call(self::MECH_A, 'POST', "/api/repairs/$callId/journal", ['entry_id' => $entryA['item']['id']])[0]);
     }
 
     public function testMasterCreatesCallForMechanic(): void

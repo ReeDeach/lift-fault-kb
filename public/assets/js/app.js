@@ -2548,8 +2548,10 @@
             html += '<p class="app-rep-who app-muted">' + icon('warning', 'lft-icon--12') + 'Адреса нет в списках лифтов бригады</p>';
         }
         if (r.journal_entry_id) {
-            html += '<a class="app-rep-done lft-label" href="' + hashFor('journal', { lift: r.lift ? r.lift.id : '' }) + '">' + icon('ok', 'lft-icon--12') + 'Закрыта записью в журнале</a>';
-        } else if (master || r.mine) {
+            html += '<a class="app-rep-done lft-label" href="' + hashFor('journal', { lift: r.lift ? r.lift.id : '' }) + '">' + icon('ok', 'lft-icon--12')
+                + 'Закрыта в журнале' + (r.closed_by ? ' · ' + esc(r.closed_by) : '') + '</a>';
+        } else {
+            // Закрыть может любой механик бригады, не только тот, чей лифт
             html += '<button type="button" class="lft-btn lft-btn--ghost app-rep-close" data-repair-close="' + r.id + '" title="Запись в журнал лифта: что было и что сделано">'
                 + icon('ok', 'lft-icon--12') + 'Закрыть заявку</button>';
         }
