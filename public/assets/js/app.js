@@ -2503,14 +2503,17 @@
         // Закрыта: в 1С указано окончание ремонта или механик закрыл заявку записью в журнал
         var closed = !!(r.finished_at || r.journal_entry_id);
         var html = '<li class="app-rep' + (closed ? '' : ' is-open') + '" data-repair="' + r.id + '">'
+            // Слева номер лифта из 1С, справа столбиком: значки состояния, под ними остановки за 30 дней
             + '<div class="app-rep-top">' + (r.reg ? '<span class="app-rep-num">' + esc(r.reg) + '</span>' : '')
+            + '<div class="app-rep-flags"><div class="app-rep-badges">'
             + (r.by_master ? '<span class="lft-badge lft-badge--warn">от мастера</span>' : '')
             + (mineMark ? '<span class="lft-badge lft-badge--ok">мой лифт</span>' : '')
             + (closed ? '' : '<span class="lft-badge lft-badge--alarm">не закрыта</span>')
             + (r.kind === 'planned' ? '<span class="lft-badge">плановая</span>' : '')
             + (r.stopped ? '<span class="lft-badge lft-badge--warn">лифт стоит</span>' : '')
+            + '</div>'
             + (r.by_master ? '' : '<span class="app-rep-count' + repeatClass(r.stops_30d) + '" title="Сколько раз лифт останавливался за последние 30 дней (из отчёта 1С)">'
-                + r.stops_30d + ' ' + plural(r.stops_30d, 'остановка', 'остановки', 'остановок') + ' за 30 дней</span>') + '</div>'
+                + r.stops_30d + ' ' + plural(r.stops_30d, 'остановка', 'остановки', 'остановок') + ' за 30 дней</span>') + '</div></div>'
             + '<p class="app-rep-addr">' + esc(r.address) + (r.floor ? ' · эт. ' + esc(r.floor) : '') + '</p>'
             + '<p class="app-rep-time lft-label">' + esc(shortTime(r.started_at)) + ' → ' + (r.finished_at ? esc(shortTime(r.finished_at)) : (r.journal_entry_id ? 'закрыта в журнале' : 'ещё не закрыта')) + '</p>';
         if (codes.length) {

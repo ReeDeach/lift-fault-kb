@@ -847,9 +847,13 @@ img.app-logo-light,.app-logo img.app-logo-light{display:none}
 .app-rep{border:1px solid var(--line-faint);background:var(--surface);padding:12px 14px;display:grid;gap:8px}
 .app-rep.is-open{border-color:var(--signal);box-shadow:inset 3px 0 0 var(--signal)}
 .app-rep p{margin:0}
-.app-rep-top{display:flex;flex-wrap:wrap;align-items:center;gap:8px}
+.app-rep-top{display:flex;align-items:flex-start;justify-content:space-between;gap:12px}
+.app-rep-num{padding-top:3px}
+.app-rep-flags{display:flex;flex-direction:column;align-items:flex-end;gap:6px;margin-left:auto;min-width:0}
+.app-rep-badges{display:flex;flex-wrap:wrap;justify-content:flex-end;gap:6px}
+.app-rep-badges:empty{display:none}
 .app-rep-num{font:500 15px/1 var(--font-mono)}
-.app-rep-count{margin-left:auto;font:500 12px/1 var(--font-mono);padding:4px 8px;border:1px solid var(--line-faint);color:var(--muted)}
+.app-rep-count{font:500 12px/1 var(--font-mono);white-space:nowrap;padding:4px 8px;border:1px solid var(--line-faint);color:var(--muted)}
 .app-rep-count.r2{border-color:#c9a53a;color:#c9a53a}
 .app-rep-count.r4{border-color:#ff8a2b;color:#ff8a2b}
 .app-rep-count.r5{border-color:var(--signal);color:var(--signal);font-weight:700}
