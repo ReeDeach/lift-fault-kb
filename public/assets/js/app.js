@@ -2332,20 +2332,36 @@
             + '</div></form></div>'
         );
 
-        loadLifts().then(function (places) {
+        // Любой лифт бригады: свои сверху, остальные по механикам (в списке есть поиск)
+        $.when(loadLifts(), api('/api/mechanics')).then(function (places, mechanics) {
             if (token !== renderToken) {
                 return;
             }
             var me = session.me.mechanic ? session.me.mechanic.id : null;
-            var html = '<option value="">Без привязки к лифту</option>';
+            var names = {};
+            $.each(mechanics.items, function (_, m) {
+                names[m.id] = m.name;
+            });
+            var groups = {};
+            var order = [];
             $.each(places, function (_, p) {
-                if (p.mechanic_id !== me) {
-                    return;
+                var key = p.mechanic_id === me ? 'me' : String(p.mechanic_id);
+                if (!groups[key]) {
+                    groups[key] = '';
+                    if (key === 'me') {
+                        order.unshift(key);
+                    } else {
+                        order.push(key);
+                    }
                 }
                 $.each(p.lifts, function (_, l) {
-                    html += '<option value="' + Number(l.id) + '">'
+                    groups[key] += '<option value="' + Number(l.id) + '">'
                         + esc(liftName({ address: p.address, object_name: p.object_name, lift_no: l.lift_no, entrance: l.entrance })) + '</option>';
                 });
+            });
+            var html = '<option value="">Без привязки к лифту</option>';
+            $.each(order, function (_, key) {
+                html += '<optgroup label="' + esc(key === 'me' ? 'Мои лифты' : (names[key] || 'Без механика')) + '">' + groups[key] + '</optgroup>';
             });
             $('#req-lift').html(html).trigger('lft:refresh');
         });
