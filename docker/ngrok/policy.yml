@@ -9,7 +9,11 @@ on_http_request:
             - x-lft-user
             - tailscale-user-login
             - x-lft-channel
-  - actions:
+  # Файл подтверждения для Android-приложения (TWA) Chrome проверяет без входа: в нём только
+  # название приложения и отпечаток ключа подписи
+  - expressions:
+      - "req.url.path != '/.well-known/assetlinks.json'"
+    actions:
       - type: oauth
         config:
           auth_id: google

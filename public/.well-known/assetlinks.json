@@ -1,0 +1,14 @@
+[
+  {
+    "relation": [
+      "delegate_permission/common.handle_all_urls"
+    ],
+    "target": {
+      "namespace": "android_app",
+      "package_name": "com.reedeach.lft",
+      "sha256_cert_fingerprints": [
+        "D6:11:66:17:52:35:6B:18:E2:94:2C:71:6A:F1:CA:0A:B8:35:35:51:4B:B8:14:0F:FC:B7:3A:FC:9E:B2:85:FA"
+      ]
+    }
+  }
+]

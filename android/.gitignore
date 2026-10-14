@@ -1,0 +1,9 @@
+# —борка и локальные пути Ч не в git
+.gradle/
+build/
+app/build/
+local.properties
+*.apk
+*.aab
+*.idsig
+.idea/
