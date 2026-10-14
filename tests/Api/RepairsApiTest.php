@@ -122,6 +122,18 @@ final class RepairsApiTest extends TestCase
         // заявки его: он видит их сразу, с выбором из своих лифтов
         [, $a] = $this->call(self::MECH_A, 'GET', '/api/repairs');
         $this->assertSame(['9001н'], array_column($a['items'], 'reg'));
+
+        // Весь участок: механик видит и чужие заявки — только посмотреть, без выбора лифта
+        [, $all] = $this->call(self::MECH_A, 'GET', '/api/repairs', query: ['scope' => 'all']);
+        $this->assertCount(3, $all['items']);
+        foreach ($all['items'] as $item) {
+            $this->assertSame($item['reg'] === '9001н', $item['mine']);
+            if (!$item['mine']) {
+                $this->assertSame([], $item['candidates']);
+                $this->assertSame("{$this->tag} механик b", $item['mechanic'], 'Чья заявка — видно, даже если лифт не уточнён');
+            }
+        }
+
         [, $b] = $this->call(self::MECH_B, 'GET', '/api/repairs');
         $this->assertCount(2, $b['items']);
         $this->assertNull($b['items'][0]['lift']);

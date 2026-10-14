@@ -17,7 +17,8 @@ use App\Repairs\ReportParser;
  * Заявки на ремонт из ежедневного отчёта 1С.
  *
  *   POST /api/repairs/import            {name, data: base64 XLSX} — загружает мастер
- *   GET  /api/repairs?as=master&report= заявки отчёта (по умолчанию последнего) и список отчётов
+ *   GET  /api/repairs?as=master&report=&scope=all заявки отчёта (по умолчанию последнего) и список отчётов;
+ *                                       механику scope=all — весь участок (свои помечены mine)
  *   POST /api/repairs/{id}/lift         {lift_id, as} — указать лифт (мастер — любой, механик — свой), номер из 1С запоминается
  *   POST /api/repairs/{id}/journal      {entry_id, as} — заявка закрыта записью в журнал
  */
@@ -87,7 +88,7 @@ final class RepairsController
         return Response::json([
             'reports' => $reports,
             'report' => $report,
-            'items' => $report === null ? [] : $this->repairs->calls($who, $asMaster, $report['id']),
+            'items' => $report === null ? [] : $this->repairs->calls($who, $asMaster, $report['id'], $request->queryString('scope') === 'all'),
         ]);
     }
 

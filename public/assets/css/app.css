@@ -833,6 +833,7 @@ img.app-logo-light,.app-logo img.app-logo-light{display:none}
 .app-rep-upload .lft-icon{width:16px;height:16px}
 .app-ok-msg{color:var(--ok)}
 .app-rep-select{margin-bottom:12px;max-width:100%}
+.app-rep-scope{margin:0 0 12px}
 .app-rep-tiles{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px;margin-bottom:12px}
 .app-rep-tiles div{border:1px solid var(--line-faint);background:var(--surface);padding:8px 10px;display:grid;gap:4px}
 .app-rep-tiles b{font:400 34px/1 var(--font-pixel);color:var(--ink)}

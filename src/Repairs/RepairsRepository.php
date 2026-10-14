@@ -127,30 +127,31 @@ final class RepairsRepository
     /**
      * Заявки одного отчёта. Мастер видит все, механик — по своим лифтам, в том числе ещё
      * не определённым точно (по адресу несколько лифтов, но все его): лифт он выбирает сам.
+     * С $all механик видит и заявки всего участка — только посмотреть: mine = false.
      *
      * @return list<array<string, mixed>>
      */
-    public function calls(Identity $who, bool $asMaster, int $reportId): array
+    public function calls(Identity $who, bool $asMaster, int $reportId, bool $all = false): array
     {
         $where = 'c.report_id = ?';
         $params = [$reportId];
-        if (!$asMaster) {
-            $me = $who->mechanicId() ?? throw new HttpException(403, 'Войдите как механик');
+        $me = $asMaster ? null : ($who->mechanicId() ?? throw new HttpException(403, 'Войдите как механик'));
+        if ($me !== null && !$all) {
             $where .= ' AND COALESCE(l.mechanic_id, c.mechanic_id) = ?';
             $params[] = $me;
         }
         $stmt = $this->pdo->prepare(
-            'SELECT c.*, l.address AS lift_address, l.object_name, l.lift_no, l.mechanic_id, m.name AS mechanic_name '
-            . 'FROM repair_calls c LEFT JOIN lifts l ON l.id = c.lift_id LEFT JOIN mechanics m ON m.id = l.mechanic_id '
+            'SELECT c.*, l.address AS lift_address, l.object_name, l.lift_no, COALESCE(l.mechanic_id, c.mechanic_id) AS owner_id, m.name AS mechanic_name '
+            . 'FROM repair_calls c LEFT JOIN lifts l ON l.id = c.lift_id LEFT JOIN mechanics m ON m.id = COALESCE(l.mechanic_id, c.mechanic_id) '
             . "WHERE $where ORDER BY (c.finished_at IS NULL) DESC, c.started_at DESC"
         );
         $stmt->execute($params);
         $rows = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
         $index = $this->liftIndex();
-        $me = $asMaster ? null : $who->mechanicId();
 
         return array_map(function (array $r) use ($index, $me): array {
+            $mine = $me === null || ($r['owner_id'] !== null && (int) $r['owner_id'] === $me);
             $item = [
                 'id' => (int) $r['id'],
                 'reg' => $r['lift_reg'],
@@ -171,9 +172,12 @@ final class RepairsRepository
                     'lift_no' => (int) $r['lift_no'],
                     'mechanic' => $r['mechanic_name'],
                 ],
+                // Чья заявка: механик лифта или (лифт не уточнён) механик всех лифтов дома
+                'mechanic' => $r['mechanic_name'],
+                'mine' => $mine,
                 'candidates' => [],
             ];
-            if ($r['lift_id'] === null) {
+            if ($r['lift_id'] === null && $mine) {
                 // Механику — только его лифты по адресу
                 $lifts = array_filter(
                     $index['address'][self::addressKey((string) $r['address'])] ?? [],

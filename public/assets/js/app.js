@@ -2481,8 +2481,10 @@
 
     function repairCardHtml(r, master) {
         var codes = codeGroups(r.codes);
+        var mineMark = !master && r.mine && repairsScope === 'all';
         var html = '<li class="app-rep' + (r.finished_at ? '' : ' is-open') + '" data-repair="' + r.id + '">'
             + '<div class="app-rep-top"><span class="app-rep-num">' + esc(r.reg) + '</span>'
+            + (mineMark ? '<span class="lft-badge lft-badge--ok">мой лифт</span>' : '')
             + (r.finished_at ? '' : '<span class="lft-badge lft-badge--alarm">не закрыта</span>')
             + (r.kind === 'planned' ? '<span class="lft-badge">плановая</span>' : '')
             + (r.stopped ? '<span class="lft-badge lft-badge--warn">лифт стоит</span>' : '')
@@ -2502,6 +2504,9 @@
         }
         if (r.lift) {
             html += '<p class="app-rep-who">' + icon('settings', 'lft-icon--12') + esc(r.lift.mechanic || 'без механика') + ' · ' + esc(liftLabel(r.lift)) + '</p>';
+        } else if (!master && !r.mine) {
+            html += '<p class="app-rep-who app-muted">' + icon('settings', 'lft-icon--12')
+                + (r.mechanic ? esc(r.mechanic) + ' · лифт не уточнён' : 'Адреса нет в списках лифтов бригады') + '</p>';
         } else if (master || r.candidates.length) {
             html += '<div class="app-rep-match"><span class="lft-label">' + (master ? 'Чей это лифт?' : 'Какой из ваших лифтов?')
                 + ' Выберите один раз — номер ' + esc(r.reg) + ' запомнится</span>';
@@ -2517,7 +2522,7 @@
         }
         if (r.journal_entry_id) {
             html += '<a class="app-rep-done lft-label" href="' + hashFor('journal', { lift: r.lift ? r.lift.id : '' }) + '">' + icon('ok', 'lft-icon--12') + 'Закрыта записью в журнале</a>';
-        } else if (r.kind === 'fault') {
+        } else if (r.kind === 'fault' && (master || r.mine)) {
             html += '<button type="button" class="lft-btn lft-btn--ghost app-rep-close" data-repair-close="' + r.id + '">' + icon('journal', 'lft-icon--12') + 'Закрыть записью в журнал</button>';
         }
         return html + '</li>';
@@ -2525,6 +2530,7 @@
 
     var repairsData = null;
     var repairsKind = 'fault';
+    var repairsScope = 'mine';
 
     function renderRepairs(params, token) {
         var master = isMaster();
@@ -2542,7 +2548,8 @@
             + '</div>'
         );
 
-        api('/api/repairs', { as: asRole(), report: params.report }).then(function (data) {
+        // Механик получает весь участок сразу, «Мои» отбираются на месте — переключение без запроса
+        api('/api/repairs', { as: asRole(), report: params.report, scope: master ? undefined : 'all' }).then(function (data) {
             if (token !== renderToken) {
                 return;
             }
@@ -2565,12 +2572,17 @@
         var r = data.report;
         $('#rep-period').text(shortTime(r.period_from) + ' → ' + shortTime(r.period_to) + (r.section ? ' · ' + r.section : ''));
 
-        var items = data.items;
+        // Механик: свои заявки или весь участок. Плитки и счётчики — по выбранному
+        var mineOnly = !master && repairsScope === 'mine';
+        var items = mineOnly ? $.grep(data.items, function (x) { return x.mine; }) : data.items;
         var faults = $.grep(items, function (x) { return x.kind === 'fault'; });
-        var open = $.grep(items, function (x) { return !x.finished_at; });
+        var open = $.grep(faults, function (x) { return !x.finished_at; });
+        var stopped = $.grep(faults, function (x) { return x.stopped; });
         var heavy = {};
-        $.each(items, function (_, x) { if (x.stops_30d >= 4) { heavy[x.reg] = true; } });
+        $.each(faults, function (_, x) { if (x.stops_30d >= 4) { heavy[x.reg] = true; } });
         var unmatched = $.grep(items, function (x) { return !x.lift; });
+        var mineCount = $.grep(data.items, function (x) { return x.mine; }).length;
+        $('#rep-title').text(master || !mineOnly ? 'Заявки участка' : 'Заявки по моим лифтам');
 
         var html = '';
         if (data.reports.length > 1) {
@@ -2580,23 +2592,29 @@
             });
             html += '</select></label>';
         }
+        if (!master) {
+            html += '<div class="app-types app-journal-tabs app-rep-scope" role="tablist" aria-label="Чьи заявки">'
+                + '<button type="button" class="fp-chip app-type" data-rep-scope="mine" aria-pressed="' + mineOnly + '">' + icon('settings', 'lft-icon--12') + 'Мои · ' + mineCount + '</button>'
+                + '<button type="button" class="fp-chip app-type" data-rep-scope="all" aria-pressed="' + !mineOnly + '">' + icon('building', 'lft-icon--12') + 'Весь участок · ' + data.items.length + '</button></div>';
+        }
+        // Плитки — только неисправности: плановые работы посчитаны на кнопках ниже
         html += '<div class="app-rep-tiles">'
-            + '<div><b>' + faults.length + '</b><span class="lft-label">неисправн.</span></div>'
-            + '<div><b>' + (items.length - faults.length) + '</b><span class="lft-label">ТО и работы</span></div>'
-            + '<div class="bad"><b>' + open.length + '</b><span class="lft-label">не закрыты</span></div>'
-            + '<div class="bad"><b>' + Object.keys(heavy).length + '</b><span class="lft-label">лифтов 4+ ост.</span></div>'
+            + '<div><b>' + faults.length + '</b><span class="lft-label">неисправностей</span></div>'
+            + '<div class="bad"><b>' + open.length + '</b><span class="lft-label">из них не закрыты</span></div>'
+            + '<div class="bad"><b>' + stopped.length + '</b><span class="lft-label">лифт стоял</span></div>'
+            + '<div class="bad"><b>' + Object.keys(heavy).length + '</b><span class="lft-label">частые: 4+ ост. за 30 дн.</span></div>'
             + '</div>';
         if (master && unmatched.length) {
             html += '<p class="app-rep-warn lft-label">' + icon('warning', 'lft-icon--12') + unmatched.length + ' ' + plural(unmatched.length, 'заявка', 'заявки', 'заявок') + ' без лифта: укажите, чей это лифт, — механик увидит заявку</p>';
         }
         html += '<div class="app-types app-journal-tabs" role="tablist">'
-            + '<button type="button" class="fp-chip app-type" data-rep-kind="fault" aria-pressed="' + (repairsKind === 'fault') + '">Неисправности</button>'
-            + '<button type="button" class="fp-chip app-type" data-rep-kind="planned" aria-pressed="' + (repairsKind === 'planned') + '">ТО и работы</button>'
-            + '<button type="button" class="fp-chip app-type" data-rep-kind="all" aria-pressed="' + (repairsKind === 'all') + '">Все</button></div>';
+            + '<button type="button" class="fp-chip app-type" data-rep-kind="fault" aria-pressed="' + (repairsKind === 'fault') + '">Неисправности · ' + faults.length + '</button>'
+            + '<button type="button" class="fp-chip app-type" data-rep-kind="planned" aria-pressed="' + (repairsKind === 'planned') + '">ТО и работы · ' + (items.length - faults.length) + '</button>'
+            + '<button type="button" class="fp-chip app-type" data-rep-kind="all" aria-pressed="' + (repairsKind === 'all') + '">Все · ' + items.length + '</button></div>';
         var shown = $.grep(items, function (x) { return repairsKind === 'all' || x.kind === repairsKind; });
         html += shown.length
             ? '<ul class="app-rep-list">' + $.map(shown, function (x) { return repairCardHtml(x, master); }).join('') + '</ul>'
-            : '<p class="app-empty">' + (master ? 'Нет заявок этого вида.' : 'По вашим лифтам заявок нет.') + '</p>';
+            : '<p class="app-empty">' + (mineOnly ? 'По вашим лифтам заявок этого вида нет.' : 'Нет заявок этого вида.') + '</p>';
         $('#rep-body').html(html);
         $('#rep-body .app-select select').each(function () {
             customSelect(this);
@@ -2643,6 +2661,10 @@
         })
         .on('change', '#rep-report', function () {
             go('repairs', { report: $(this).val() });
+        })
+        .on('click', '[data-rep-scope]', function () {
+            repairsScope = String($(this).data('rep-scope'));
+            drawRepairs();
         })
         .on('click', '[data-rep-kind]', function () {
             repairsKind = String($(this).data('rep-kind'));
